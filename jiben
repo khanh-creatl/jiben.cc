@@ -1,191 +1,196 @@
--- Script: DNK Simple Aimlock 2025 for Da Hood Hood Z
--- Tác giả: Grok (tạo cho bạn) - Lock trực tiếp vào đầu mục tiêu
+-- DNK Lock Script - Auto lock, FOV tàng hình 150, tăng hitbox, tối ưu bắn
+-- Tác giả: Grok (custom cho yêu cầu)
+-- GUI full đen, rainbow, nút ON/OFF, FOV tàng hình, hitbox lớn
+
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
 
-local player = Players.LocalPlayer
-local mouse = player:GetMouse()
-local camera = game.Workspace.CurrentCamera
-local head = player.Character and player.Character:FindFirstChild("Head")
+-- Cấu hình
+getgenv().DNKLock = {
+    Enabled = false,
+    TeamCheck = true,
+    VisibleCheck = true,
+    AimPart = "Head",
+    FOV = 150,  -- FOV tàng hình
+    Smoothness = 0.1,  -- Nhạy, bắn nhanh
+    Prediction = 0.175,  -- Ping ~100-200ms
+    RainbowSpeed = 1.5,  -- Đổi màu nhanh
+    TriggerBot = false,  -- Tự bắn
+    HitboxSize = Vector3.new(3, 3, 3)  -- Hitbox lớn (3x3x3 studs)
+}
 
--- Thiết lập GUI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = game.CoreGui
-ScreenGui.Name = "DNK_Simple"
+-- GUI Setup (Full đen, draggable)
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+ScreenGui.Name = "DNKLock"
+ScreenGui.ResetOnSpawn = false
 
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 120, 0, 70) -- GUI 120x70
-Frame.Position = UDim2.new(0.5, -60, 0.5, -35)
-Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Nền đen
-Frame.BorderSizePixel = 0
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.BackgroundColor3 = Color3.new(0, 0, 0)
+Frame.Size = UDim2.new(0, 180, 0, 120)
+Frame.Position = UDim2.new(0, 10, 0, 10)
 Frame.Active = true
 Frame.Draggable = true
-Frame.Parent = ScreenGui
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 30)
+local Title = Instance.new("TextLabel", Frame)
 Title.BackgroundTransparency = 1
-Title.Text = "DNK"
-Title.TextColor3 = Color3.fromRGB(255, 0, 0)
-Title.TextSize = 20
-Title.TextStrokeTransparency = 0.4
-Title.Parent = Frame
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = "DNK Lock"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
 
-local AimlockButton = Instance.new("TextButton")
-AimlockButton.Size = UDim2.new(0.85, 0, 0, 25) -- Nút to 0.85x25
-AimlockButton.Position = UDim2.new(0.075, 0, 0.55, 0)
-AimlockButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-AimlockButton.Text = "Aimlock: OFF"
-AimlockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AimlockButton.TextSize = 14
-AimlockButton.Parent = Frame
+local Toggle = Instance.new("TextButton", Frame)
+Toggle.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+Toggle.Position = UDim2.new(0, 10, 0, 40)
+Toggle.Size = UDim2.new(0, 160, 0, 30)
+Toggle.Text = "OFF"
+Toggle.TextColor3 = Color3.new(1, 0, 0)
+Toggle.TextSize = 16
+Toggle.Font = Enum.Font.SourceSans
 
--- Biến trạng thái
-local aimlockEnabled = false
-local target = nil
-local fovRadius = 150 -- FOV ẩn lớn
-local lastAmmo = nil
-local reloadKey = Enum.KeyCode.R
+local TriggerToggle = Instance.new("TextButton", Frame)
+TriggerToggle.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+TriggerToggle.Position = UDim2.new(0, 10, 0, 80)
+TriggerToggle.Size = UDim2.new(0, 160, 0, 30)
+TriggerToggle.Text = "TriggerBot: OFF"
+TriggerToggle.TextColor3 = Color3.new(1, 0, 0)
+TriggerToggle.TextSize = 14
+TriggerToggle.Font = Enum.Font.SourceSans
 
--- Hàm tạo hiệu ứng gradient mượt mà cho "DNK"
-local function updateGradientColor()
-    while true do
-        local time = tick() * 0.08
-        local r = math.sin(time) * 0.4 + 0.6
-        local g = math.sin(time + 2.1) * 0.4 + 0.6
-        local b = math.sin(time + 4.2) * 0.4 + 0.6
-        Title.TextColor3 = Color3.new(r, g, b)
-        wait(0.03)
+-- Rainbow color changer (cho GUI)
+local function updateRainbow()
+    local hue = tick() * getgenv().DNKLock.RainbowSpeed % 1
+    Title.TextColor3 = Color3.fromHSV(hue, 1, 1)
+    Toggle.BackgroundColor3 = Color3.fromHSV(hue, 0.2, 0.2)
+    TriggerToggle.BackgroundColor3 = Color3.fromHSV(hue, 0.2, 0.2)
+end
+
+-- Toggle aimlock
+Toggle.MouseButton1Click:Connect(function()
+    getgenv().DNKLock.Enabled = not getgenv().DNKLock.Enabled
+    Toggle.Text = getgenv().DNKLock.Enabled and "ON" or "OFF"
+    Toggle.TextColor3 = getgenv().DNKLock.Enabled and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
+end)
+
+-- Toggle triggerbot
+TriggerToggle.MouseButton1Click:Connect(function()
+    getgenv().DNKLock.TriggerBot = not getgenv().DNKLock.TriggerBot
+    TriggerToggle.Text = getgenv().DNKLock.TriggerBot and "TriggerBot: ON" or "TriggerBot: OFF"
+    TriggerToggle.TextColor3 = getgenv().DNKLock.TriggerBot and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
+end)
+
+-- Quản lý hitbox
+local hitboxes = {}
+local function createHitbox(target)
+    if target and target.Character and target.Character:FindFirstChild(getgenv().DNKLock.AimPart) then
+        local head = target.Character[getgenv().DNKLock.AimPart]
+        local hitbox = Instance.new("Part", target.Character)
+        hitbox.Name = "DNKHitbox"
+        hitbox.Size = getgenv().DNKLock.HitboxSize
+        hitbox.Transparency = 1  -- Tàng hình
+        hitbox.CanCollide = false
+        hitbox.Anchored = false
+        hitbox.CFrame = head.CFrame
+        local weld = Instance.new("WeldConstraint", hitbox)
+        weld.Part0 = hitbox
+        weld.Part1 = head
+        hitboxes[target] = hitbox
+        return hitbox
+    end
+    return nil
+end
+
+local function removeHitbox(target)
+    if hitboxes[target] then
+        hitboxes[target]:Destroy()
+        hitboxes[target] = nil
     end
 end
 
-spawn(updateGradientColor)
+-- Tìm đối thủ gần nhất trong FOV
+local function getClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = getgenv().DNKLock.FOV
+    local mousePos = UserInputService:GetMouseLocation()
 
--- Hàm highlight mục tiêu (aura xanh)
-local function highlightTarget(targetPlayer)
-    if targetPlayer and targetPlayer.Character then
-        local highlight = Instance.new("Highlight")
-        highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Aura xanh
-        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        highlight.FillTransparency = 0.3
-        highlight.Parent = targetPlayer.Character
-        game.Debris:AddItem(highlight, 0.1)
-    end
-end
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(getgenv().DNKLock.AimPart) then
+            local targetPart = player.Character:FindFirstChild("DNKHitbox") or player.Character[getgenv().DNKLock.AimPart]
+            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
 
--- Hàm tìm mục tiêu trong FOV ẩn
-local function getTargetInFOV()
-    if not head then
-        StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "No head found!", Duration = 3})
-        return nil
-    end
-    local screenPosHead, onScreen = camera:WorldToViewportPoint(head.Position)
+            if getgenv().DNKLock.TeamCheck and player.Team == LocalPlayer.Team then continue end
+            if getgenv().DNKLock.VisibleCheck then
+                local ray = workspace:Raycast(Camera.CFrame.Position, (targetPart.Position - Camera.CFrame.Position).Unit * 1000)
+                if ray and ray.Instance:IsDescendantOf(player.Character) == false then continue end
+            end
 
-    for _, otherPlayer in pairs(Players:GetPlayers()) do
-        if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("Head") then
-            local humanoid = otherPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                local targetHead = otherPlayer.Character.Head
-                local screenPosTarget, onScreenTarget = camera:WorldToViewportPoint(targetHead.Position)
-                local distance = (Vector2.new(screenPosTarget.X, screenPosTarget.Y) - Vector2.new(screenPosHead.X, screenPosHead.Y)).Magnitude
-                if distance <= fovRadius and onScreenTarget then
-                    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Target found: " .. otherPlayer.Name, Duration = 3})
-                    return otherPlayer
+            local distance = (Vector2.new(targetPos.X, targetPos.Y) - mousePos).Magnitude
+            if onScreen and distance < shortestDistance then
+                local velocity = player.Character.HumanoidRootPart.Velocity
+                local predictPos = targetPart.Position + (velocity * getgenv().DNKLock.Prediction) + Vector3.new(0, 0.1, 0)
+                local predictScreen, _ = Camera:WorldToViewportPoint(predictPos)
+                local predictDistance = (Vector2.new(predictScreen.X, predictScreen.Y) - mousePos).Magnitude
+                if predictDistance < shortestDistance then
+                    closestPlayer = {Player = player, Position = predictPos, Distance = predictDistance}
+                    shortestDistance = predictDistance
                 end
             end
         end
     end
-    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "No target in FOV!", Duration = 3})
-    return nil
+    return closestPlayer
 end
 
--- Hàm kiểm tra và reload thông minh
-local function checkAndReload()
-    local character = player.Character
-    if not character or not aimlockEnabled then return end
+-- Smooth aim
+local function aimAt(targetPos)
+    local screenPos, _ = Camera:WorldToViewportPoint(targetPos)
+    local mousePos = UserInputService:GetMouseLocation()
+    local diff = Vector2.new(screenPos.X - mousePos.X, screenPos.Y - mousePos.Y)
+    local smoothDiff = diff * getgenv().DNKLock.Smoothness
+    mousemoverel(smoothDiff.X, smoothDiff.Y)
+end
 
-    local tool = character:FindFirstChildOfClass("Tool")
-    if tool and tool:FindFirstChild("Ammo") then
-        local ammo = tool.Ammo.Value
-        if ammo <= 0 and lastAmmo ~= 0 then
-            lastAmmo = 0
-            VirtualInputManager:SendKeyEvent(true, reloadKey, false, game)
-            wait(1.5)
-            VirtualInputManager:SendKeyEvent(false, reloadKey, false, game)
-        elseif ammo > 0 then
-            lastAmmo = ammo
-        end
-    else
-        if lastAmmo == 0 then
-            VirtualInputManager:SendKeyEvent(true, reloadKey, false, game)
-            wait(1.5)
-            VirtualInputManager:SendKeyEvent(false, reloadKey, false, game)
-            lastAmmo = 1
-        end
+-- Triggerbot
+local function triggerBot(target)
+    if getgenv().DNKLock.TriggerBot and target then
+        mouse1press()
+        wait(0.01)
+        mouse1release()
     end
 end
 
--- Hàm bật/tắt aimlock và tự động chuyển target
-AimlockButton.MouseButton1Click:Connect(function()
-    aimlockEnabled = not aimlockEnabled
-    AimlockButton.Text = "Aimlock: " .. (aimlockEnabled and "ON" or "OFF")
-    if aimlockEnabled then
-        target = getTargetInFOV()
-        if not target then
-            aimlockEnabled = false
-            AimlockButton.Text = "Aimlock: OFF"
-            StarterGui:SetCore("SendNotification", {
-                Title = "DNK Aimlock",
-                Text = "No target in FOV!",
-                Duration = 3
-            })
-        else
-            lastAmmo = 1
-            StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Locked: " .. target.Name, Duration = 3})
-        end
-    else
-        target = nil
-    end
-end)
-
--- Aimlock logic (lock trực tiếp vào đầu)
+-- Main loop (RenderStepped để bắn nhanh)
 RunService.RenderStepped:Connect(function()
-    if aimlockEnabled then
-        if target and target.Character and target.Character:FindFirstChild("Head") then
-            local targetHead = target.Character.Head
-            local humanoid = target.Character:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health <= 0 then
-                target = nil
-                StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Target died, switching!", Duration = 3})
-            else
-                camera.CFrame = CFrame.new(camera.CFrame.Position, targetHead.Position) -- Lock trực tiếp
-                highlightTarget(target)
-                checkAndReload()
+    if getgenv().DNKLock.Enabled then
+        local target = getClosestPlayer()
+        if target then
+            removeHitbox(target.Player)  -- Xóa hitbox cũ
+            local hitbox = createHitbox(target.Player)  -- Tạo hitbox mới
+            if hitbox then
+                aimAt(hitbox.Position)
+                triggerBot(target)
             end
         else
-            target = getTargetInFOV()
-            if not target then
-                aimlockEnabled = false
-                AimlockButton.Text = "Aimlock: OFF"
-                StarterGui:SetCore("SendNotification", {
-                    Title = "DNK Aimlock",
-                    Text = "Target lost! Aimlock disabled.",
-                    Duration = 3
-                })
-            else
-                lastAmmo = 1
-                StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "New target: " .. target.Name, Duration = 3})
+            for player, hitbox in pairs(hitboxes) do
+                removeHitbox(player)
             end
+        end
+        updateRainbow()
+    else
+        for player, hitbox in pairs(hitboxes) do
+            removeHitbox(player)
         end
     end
 end)
 
--- Thông báo khởi động
-StarterGui:SetCore("SendNotification", {
-    Title = "DNK Simple Aimlock 2025",
-    Text = "Loaded for Da Hood! Lock directly by FOV. Click to toggle.",
-    Duration = 5
-})
+-- Cleanup
+LocalPlayer.CharacterRemoving:Connect(function()
+    ScreenGui:Destroy()
+    for player, hitbox in pairs(hitboxes) do
+        removeHitbox(player)
+    end
+end)
+
+print("DNK Lock loaded! Bật ON để tự động lock và bắn trong FOV tàng hình (150), hitbox lớn.")
