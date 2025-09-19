@@ -1,6 +1,6 @@
--- DNK Lock Script - Auto lock, FOV tàng hình 150, tăng hitbox, tối ưu bắn
+-- DNK Lock Script - Camera tự đi theo, FOV tàng hình 150, hitbox lớn, tối ưu lag
 -- Tác giả: Grok (custom cho yêu cầu)
--- GUI full đen, rainbow, nút ON/OFF, FOV tàng hình, hitbox lớn
+-- GUI full đen, rainbow, nút ON/OFF, giảm lag, dễ bắn
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -15,14 +15,14 @@ getgenv().DNKLock = {
     VisibleCheck = true,
     AimPart = "Head",
     FOV = 150,  -- FOV tàng hình
-    Smoothness = 0.1,  -- Nhạy, bắn nhanh
+    Smoothness = 0.12,  -- Mượt hơn, giảm lag
     Prediction = 0.175,  -- Ping ~100-200ms
     RainbowSpeed = 1.5,  -- Đổi màu nhanh
     TriggerBot = false,  -- Tự bắn
-    HitboxSize = Vector3.new(3, 3, 3)  -- Hitbox lớn (3x3x3 studs)
+    HitboxSize = Vector3.new(3, 3, 3)  -- Hitbox lớn
 }
 
--- GUI Setup (Full đen, draggable)
+-- GUI Setup (Full đen, nhẹ)
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
 ScreenGui.Name = "DNKLock"
 ScreenGui.ResetOnSpawn = false
@@ -60,9 +60,9 @@ TriggerToggle.TextColor3 = Color3.new(1, 0, 0)
 TriggerToggle.TextSize = 14
 TriggerToggle.Font = Enum.Font.SourceSans
 
--- Rainbow color changer (cho GUI)
+-- Rainbow color changer (nhẹ)
 local function updateRainbow()
-    local hue = tick() * getgenv().DNKLock.RainbowSpeed % 1
+    local hue = tick() % getgenv().DNKLock.RainbowSpeed
     Title.TextColor3 = Color3.fromHSV(hue, 1, 1)
     Toggle.BackgroundColor3 = Color3.fromHSV(hue, 0.2, 0.2)
     TriggerToggle.BackgroundColor3 = Color3.fromHSV(hue, 0.2, 0.2)
@@ -82,18 +82,18 @@ TriggerToggle.MouseButton1Click:Connect(function()
     TriggerToggle.TextColor3 = getgenv().DNKLock.TriggerBot and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
 end)
 
--- Quản lý hitbox
+-- Quản lý hitbox (tối ưu)
 local hitboxes = {}
 local function createHitbox(target)
     if target and target.Character and target.Character:FindFirstChild(getgenv().DNKLock.AimPart) then
         local head = target.Character[getgenv().DNKLock.AimPart]
-        local hitbox = Instance.new("Part", target.Character)
+        local hitbox = Instance.new("Part")
         hitbox.Name = "DNKHitbox"
         hitbox.Size = getgenv().DNKLock.HitboxSize
-        hitbox.Transparency = 1  -- Tàng hình
+        hitbox.Transparency = 1
         hitbox.CanCollide = false
         hitbox.Anchored = false
-        hitbox.CFrame = head.CFrame
+        hitbox.Parent = target.Character
         local weld = Instance.new("WeldConstraint", hitbox)
         weld.Part0 = hitbox
         weld.Part1 = head
@@ -110,6 +110,19 @@ local function removeHitbox(target)
     end
 end
 
+-- Cache visible check để giảm raycast
+local visibleCache = {}
+local function isVisible(targetPart, targetPlayer)
+    if not getgenv().DNKLock.VisibleCheck then return true end
+    if visibleCache[targetPlayer] and tick() - visibleCache[targetPlayer].time < 0.1 then
+        return visibleCache[targetPlayer].result
+    end
+    local ray = workspace:Raycast(Camera.CFrame.Position, (targetPart.Position - Camera.CFrame.Position).Unit * 1000)
+    local result = ray and ray.Instance:IsDescendantOf(targetPlayer.Character)
+    visibleCache[targetPlayer] = {result = result, time = tick()}
+    return result
+end
+
 -- Tìm đối thủ gần nhất trong FOV
 local function getClosestPlayer()
     local closestPlayer = nil
@@ -122,10 +135,7 @@ local function getClosestPlayer()
             local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
 
             if getgenv().DNKLock.TeamCheck and player.Team == LocalPlayer.Team then continue end
-            if getgenv().DNKLock.VisibleCheck then
-                local ray = workspace:Raycast(Camera.CFrame.Position, (targetPart.Position - Camera.CFrame.Position).Unit * 1000)
-                if ray and ray.Instance:IsDescendantOf(player.Character) == false then continue end
-            end
+            if not isVisible(targetPart, player) then continue end
 
             local distance = (Vector2.new(targetPos.X, targetPos.Y) - mousePos).Magnitude
             if onScreen and distance < shortestDistance then
@@ -143,13 +153,11 @@ local function getClosestPlayer()
     return closestPlayer
 end
 
--- Smooth aim
+-- Camera follow (mượt, tối ưu)
 local function aimAt(targetPos)
-    local screenPos, _ = Camera:WorldToViewportPoint(targetPos)
-    local mousePos = UserInputService:GetMouseLocation()
-    local diff = Vector2.new(screenPos.X - mousePos.X, screenPos.Y - mousePos.Y)
-    local smoothDiff = diff * getgenv().DNKLock.Smoothness
-    mousemoverel(smoothDiff.X, smoothDiff.Y)
+    local currentCFrame = Camera.CFrame
+    local targetCFrame = CFrame.new(currentCFrame.Position, targetPos)
+    Camera.CFrame = currentCFrame:Lerp(targetCFrame, getgenv().DNKLock.Smoothness)
 end
 
 -- Triggerbot
@@ -161,13 +169,13 @@ local function triggerBot(target)
     end
 end
 
--- Main loop (RenderStepped để bắn nhanh)
-RunService.RenderStepped:Connect(function()
+-- Main loop (Heartbeat để giảm lag)
+RunService.Heartbeat:Connect(function()
     if getgenv().DNKLock.Enabled then
         local target = getClosestPlayer()
         if target then
-            removeHitbox(target.Player)  -- Xóa hitbox cũ
-            local hitbox = createHitbox(target.Player)  -- Tạo hitbox mới
+            removeHitbox(target.Player)
+            local hitbox = createHitbox(target.Player)
             if hitbox then
                 aimAt(hitbox.Position)
                 triggerBot(target)
@@ -193,4 +201,4 @@ LocalPlayer.CharacterRemoving:Connect(function()
     end
 end)
 
-print("DNK Lock loaded! Bật ON để tự động lock và bắn trong FOV tàng hình (150), hitbox lớn.")
+print("DNK Lock loaded! Bật ON để camera tự đi theo đối thủ trong FOV tàng hình (150), hitbox lớn, tối ưu lag.")
