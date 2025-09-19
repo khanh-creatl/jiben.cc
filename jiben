@@ -1,4 +1,4 @@
--- Script: Aimlock GUI với Walkspeed và Anti-Delay
+-- Script: DNK Aimlock GUI với Walkspeed và Silent Aim
 -- Tác giả: Grok (tạo cho bạn)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -15,74 +15,87 @@ ScreenGui.Parent = game.CoreGui
 ScreenGui.Name = "DNK_Aimlock"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 120, 0, 120) -- Ô vuông nhỏ
-Frame.Position = UDim2.new(0.5, -60, 0.5, -60) -- Giữa màn hình
-Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.Size = UDim2.new(0, 120, 0, 120)
+Frame.Position = UDim2.new(0.5, -60, 0.5, -60)
+Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 Frame.BorderSizePixel = 0
-Frame.Active = true -- Cho phép kéo
-Frame.Draggable = true -- Kéo thả GUI
+Frame.Active = true
+Frame.Draggable = true
 Frame.Parent = ScreenGui
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundTransparency = 1
 Title.Text = "DNK"
-Title.TextColor3 = Color3.fromRGB(0, 170, 255)
-Title.TextSize = 24
-Title.TextStrokeTransparency = 0.8
+Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.TextSize = 20
+Title.TextStrokeTransparency = 0.7
 Title.Parent = Frame
 
 local AimlockButton = Instance.new("TextButton")
-AimlockButton.Size = UDim2.new(0.8, 0, 0, 30)
-AimlockButton.Position = UDim2.new(0.1, 0, 0.4, 0)
-AimlockButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+AimlockButton.Size = UDim2.new(0.7, 0, 0, 20)
+AimlockButton.Position = UDim2.new(0.15, 0, 0.35, 0)
+AimlockButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 AimlockButton.Text = "Aimlock: OFF"
 AimlockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AimlockButton.TextSize = 16
+AimlockButton.TextSize = 12
 AimlockButton.Parent = Frame
 
 local WalkspeedButton = Instance.new("TextButton")
-WalkspeedButton.Size = UDim2.new(0.8, 0, 0, 30)
-WalkspeedButton.Position = UDim2.new(0.1, 0, 0.65, 0)
-WalkspeedButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+WalkspeedButton.Size = UDim2.new(0.4, 0, 0, 20)
+WalkspeedButton.Position = UDim2.new(0.05, 0, 0.6, 0)
+WalkspeedButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 WalkspeedButton.Text = "WS: OFF"
 WalkspeedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-WalkspeedButton.TextSize = 16
+WalkspeedButton.TextSize = 12
 WalkspeedButton.Parent = Frame
+
+local SilentAimButton = Instance.new("TextButton")
+SilentAimButton.Size = UDim2.new(0.7, 0, 0, 20)
+SilentAimButton.Position = UDim2.new(0.15, 0, 0.5, 0)
+SilentAimButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SilentAimButton.Text = "Silent Aim: OFF"
+SilentAimButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+SilentAimButton.TextSize = 12
+SilentAimButton.Parent = Frame
 
 -- Biến trạng thái
 local aimlockEnabled = false
 local walkspeedEnabled = false
+local silentAimEnabled = false
 local target = nil
-local fovRadius = 150 -- Bán kính FOV
-local defaultWalkspeed = 16
-local macroWalkspeed = 50 -- Tốc độ kiểu macro Da Hood
-local bulletDelay = 0 -- Anti-delay: Đạn bắn ngay, không delay
+local silentTarget = nil
 
--- Vẽ vòng FOV
-local fovCircle = Drawing.new("Circle")
-fovCircle.Visible = false
-fovCircle.Radius = fovRadius
-fovCircle.Color = Color3.fromRGB(255, 0, 0)
-fovCircle.Thickness = 2
-fovCircle.Filled = false
-
--- Hàm highlight mục tiêu (aura đỏ)
-local function highlightTarget(targetPlayer)
-    if targetPlayer and targetPlayer.Character then
-        local highlight = Instance.new("Highlight")
-        highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Aura đỏ
-        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        highlight.FillTransparency = 0.5
-        highlight.Parent = targetPlayer.Character
-        game.Debris:AddItem(highlight, 0.2) -- Xóa highlight nhanh
+-- Hàm tạo hiệu ứng màu cầu vồng cho "DNK"
+local function updateRainbowColor()
+    while true do
+        local time = tick() * 0.2
+        local r = math.sin(time) * 127 + 128
+        local g = math.sin(time + 2) * 127 + 128
+        local b = math.sin(time + 4) * 127 + 128
+        Title.TextColor3 = Color3.fromRGB(r, g, b)
+        wait(0.1)
     end
 end
 
--- Hàm tìm mục tiêu gần nhất (ngắm vào Head)
-local function getClosestPlayer()
+spawn(updateRainbowColor)
+
+-- Hàm highlight mục tiêu (aura xanh cho aimlock)
+local function highlightTarget(targetPlayer)
+    if targetPlayer and targetPlayer.Character then
+        local highlight = Instance.new("Highlight")
+        highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Aura xanh
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.FillTransparency = 0.4
+        highlight.Parent = targetPlayer.Character
+        game.Debris:AddItem(highlight, 0.15)
+    end
+end
+
+-- Hàm tìm mục tiêu gần nhất
+local function getNearestTarget()
     local closestPlayer = nil
-    local closestDistance = fovRadius
+    local closestDistance = math.huge
     local mousePos = Vector2.new(mouse.X, mouse.Y)
 
     for _, otherPlayer in pairs(Players:GetPlayers()) do
@@ -104,42 +117,63 @@ local function getClosestPlayer()
     return closestPlayer
 end
 
+-- Hàm silent aim (thay đổi hướng bắn)
+local function applySilentAim()
+    if silentAimEnabled and silentTarget and silentTarget.Character and silentTarget.Character:FindFirstChild("Head") then
+        local head = silentTarget.Character.Head
+        local mouseRay = camera:ViewportPointToRay(mouse.X, mouse.Y)
+        local newDirection = (head.Position - mouseRay.Origin).Unit
+        mouse.Hit = CFrame.new(mouseRay.Origin, head.Position) -- Điều chỉnh hướng bắn
+    end
+end
+
 -- Hàm bật/tắt aimlock
 AimlockButton.MouseButton1Click:Connect(function()
     aimlockEnabled = not aimlockEnabled
-    AimlockButton.Text = aimlockEnabled and "Aimlock: ON" or "Aimlock: OFF"
-    AimlockButton.BackgroundColor3 = aimlockEnabled and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
-    fovCircle.Visible = aimlockEnabled
+    AimlockButton.Text = "Aimlock: " .. (aimlockEnabled and "ON" or "OFF")
+    if aimlockEnabled then
+        target = getNearestTarget()
+    else
+        target = nil
+    end
 end)
 
 -- Hàm bật/tắt walkspeed
 WalkspeedButton.MouseButton1Click:Connect(function()
     walkspeedEnabled = not walkspeedEnabled
-    WalkspeedButton.Text = walkspeedEnabled and "WS: ON" or "WS: OFF"
-    WalkspeedButton.BackgroundColor3 = walkspeedEnabled and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 0)
+    WalkspeedButton.Text = "WS: " .. (walkspeedEnabled and "ON" or "OFF")
     if player.Character and player.Character:FindFirstChild("Humanoid") then
-        player.Character.Humanoid.WalkSpeed = walkspeedEnabled and macroWalkspeed or defaultWalkspeed
+        local humanoid = player.Character.Humanoid
+        humanoid.WalkSpeed = walkspeedEnabled and 50 or 16
     end
 end)
 
--- Aimlock logic
-RunService.RenderStepped:Connect(function()
-    if aimlockEnabled then
-        target = getClosestPlayer()
-        if target and target.Character and target.Character:FindFirstChild("Head") then
-            local head = target.Character.Head
-            camera.CFrame = CFrame.new(camera.CFrame.Position, head.Position) -- Ngắm ngay đầu
-            highlightTarget(target) -- Thêm aura đỏ
-        end
-        fovCircle.Position = Vector2.new(mouse.X, mouse.Y)
+-- Hàm bật/tắt silent aim
+SilentAimButton.MouseButton1Click:Connect(function()
+    silentAimEnabled = not silentAimEnabled
+    SilentAimButton.Text = "Silent Aim: " .. (silentAimEnabled and "ON" or "OFF")
+    if silentAimEnabled then
+        silentTarget = getNearestTarget()
     else
-        fovCircle.Visible = false
+        silentTarget = nil
+    end
+end)
+
+-- Logic aimlock và silent aim
+RunService.RenderStepped:Connect(function()
+    if aimlockEnabled and target and target.Character and target.Character:FindFirstChild("Head") then
+        local head = target.Character.Head
+        camera.CFrame = CFrame.new(camera.CFrame.Position, head.Position)
+        highlightTarget(target) -- Aura xanh
+    end
+    if silentAimEnabled then
+        applySilentAim()
     end
 end)
 
 -- Thông báo khởi động
 StarterGui:SetCore("SendNotification", {
     Title = "DNK Aimlock",
-    Text = "Aimlock & Walkspeed loaded! Click buttons to toggle.",
+    Text = "Aimlock, Walkspeed & Silent Aim loaded! Click buttons to toggle.",
     Duration = 5
 })
