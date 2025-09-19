@@ -9,24 +9,25 @@ local HttpService = game:GetService("HttpService")
 -- Biến
 local isCamlockEnabled = false
 local targetPlayer = nil
-local basePredictionFactor = 0.15 -- Hệ số dự đoán cơ bản cho ping cao
-local colorChangeSpeed = 0.05 -- Tốc độ đổi màu GUI
+local basePredictionFactor = 0.15
+local colorChangeSpeed = 0.05
 local highlight = nil
-local ping = 0 -- Biến lưu giá trị ping
+local ping = 0
 local dragging = false
 local dragStart = nil
 local startPos = nil
+local rainbowIndex = 0
 
--- Hàm lấy ping gần đúng
+-- Hàm lấy ping
 local function getPing()
     local startTime = tick()
     pcall(function()
-        HttpService:GetAsync("https://www.roblox.com") -- Gửi request đơn giản để đo độ trễ
+        HttpService:GetAsync("https://www.roblox.com")
     end)
-    return (tick() - startTime) * 1000 -- Trả về ping (ms)
+    return (tick() - startTime) * 1000
 end
 
--- Cập nhật ping mỗi 5 giây
+-- Cập nhật ping
 spawn(function()
     while true do
         ping = getPing()
@@ -46,7 +47,7 @@ local function updateHighlight()
         highlight.FillTransparency = 0.5
         highlight.OutlineTransparency = 0
         highlight.Adornee = targetPlayer.Character
-        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- Nhìn xuyên tường
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         highlight.Parent = targetPlayer.Character
     end
 end
@@ -56,57 +57,84 @@ local function createGui()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     screenGui.Name = "CamlockGui"
-    screenGui.IgnoreGuiInset = true
+    screenGui.ResetOnSpawn = false -- Không mất khi chết
 
-    -- Frame chứa GUI với hiệu ứng đổi màu
+    -- Frame chứa GUI (hình vuông đen với viền bảy màu)
     local guiFrame = Instance.new("Frame")
-    guiFrame.Size = UDim2.new(0, 120, 0, 100)
-    guiFrame.Position = UDim2.new(0.5, -60, 0.9, -50)
-    guiFrame.BackgroundTransparency = 0.3
-    guiFrame.Active = true -- Cho phép kéo
-    guiFrame.Draggable = true -- Cho phép di chuyển
+    guiFrame.Size = UDim2.new(0, 120, 0, 120)
+    guiFrame.Position = UDim2.new(0.5, -60, 0.9, -60)
+    guiFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    guiFrame.BorderSizePixel = 4
+    guiFrame.Active = true
+    guiFrame.Draggable = true
     guiFrame.Parent = screenGui
 
-    -- TextLabel "DNK" với hiệu ứng đổi màu
-    local dnkLabel = Instance.new("TextLabel")
-    dnkLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    dnkLabel.Position = UDim2.new(0, 0, 0, 0)
-    dnkLabel.Text = "DNK"
-    dnkLabel.BackgroundTransparency = 1
-    dnkLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    dnkLabel.Font = Enum.Font.SourceSansBold
-    dnkLabel.TextSize = 24
-    dnkLabel.Parent = guiFrame
-
-    -- Hiệu ứng đổi màu liên tục cho Frame
+    -- Hiệu ứng viền bảy màu chạy liên tục
     spawn(function()
         while true do
-            for i = 0, 1, colorChangeSpeed do
-                guiFrame.BackgroundColor3 = Color3.fromHSV(i, 1, 1)
-                task.wait()
-            end
+            local rainbowColors = {
+                Color3.fromRGB(255, 0, 0),      -- Đỏ
+                Color3.fromRGB(255, 127, 0),    -- Cam
+                Color3.fromRGB(255, 255, 0),    -- Vàng
+                Color3.fromRGB(0, 255, 0),      -- Xanh lá
+                Color3.fromRGB(0, 0, 255),      -- Xanh dương
+                Color3.fromRGB(75, 0, 130),     -- Chàm
+                Color3.fromRGB(148, 0, 211)     -- Tím
+            }
+            local index = math.floor(rainbowIndex % #rainbowColors) + 1
+            guiFrame.BorderColor3 = rainbowColors[index]
+            rainbowIndex = rainbowIndex + 1
+            task.wait(colorChangeSpeed)
         end
     end)
 
-    -- Nút ON/OFF
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Size = UDim2.new(1, 0, 0.5, 0)
-    toggleButton.Position = UDim2.new(0, 0, 0.5, 0)
-    toggleButton.Text = "OFF"
-    toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleButton.Font = Enum.Font.SourceSansBold
-    toggleButton.TextSize = 20
+    -- Button với hình ảnh
+    local toggleButton = Instance.new("ImageButton")
+    toggleButton.Size = UDim2.new(1, -8, 1, -8)
+    toggleButton.Position = UDim2.new(0, 4, 0, 4)
+    toggleButton.BackgroundTransparency = 1
+    toggleButton.Image = "rbxassetid://120379153377523" -- ID ảnh của bạn
+    toggleButton.ScaleType = Enum.ScaleType.Fit
     toggleButton.Parent = guiFrame
 
-    -- Bật/tắt camlock khi nhấn nút
+    -- TextLabel hiển thị trạng thái
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, 0, 1, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "OFF"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusLabel.Font = Enum.Font.SourceSansBold
+    statusLabel.TextSize = 14
+    statusLabel.TextStrokeTransparency = 0
+    statusLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    statusLabel.Parent = toggleButton
+
+    -- Xử lý kéo GUI
+    guiFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = guiFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    guiFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            guiFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    -- Bật/tắt camlock
     toggleButton.MouseButton1Click:Connect(function()
         isCamlockEnabled = not isCamlockEnabled
-        toggleButton.Text = isCamlockEnabled and "ON" or "OFF"
-        toggleButton.BackgroundColor3 = isCamlockEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 
         if isCamlockEnabled then
-            -- Chọn người chơi gần nhất để khóa
             local closestPlayer = nil
             local closestDistance = math.huge
             local localPos = LocalPlayer.Character and LocalPlayer.Character.HumanoidRootPart.Position
@@ -121,20 +149,30 @@ local function createGui()
                 end
             end
 
-            targetPlayer = closestPlayer
-            updateHighlight()
+            if closestPlayer then
+                targetPlayer = closestPlayer
+                statusLabel.Text = "DNK\nlockplayer: " .. closestPlayer.Name
+                StarterGui:SetCore("SendNotification", {
+                    Title = "DNK",
+                    Text = "lockplayer: " .. closestPlayer.Name,
+                    Duration = 3
+                })
+                updateHighlight()
 
-            -- Theo dõi sự kiện tái sinh của mục tiêu
-            if targetPlayer then
                 targetPlayer.CharacterAdded:Connect(function(newCharacter)
-                    if isCamlockEnabled and targetPlayer == closestPlayer then
-                        task.wait() -- Đợi character load hoàn toàn
+                    if isCamlockEnabled then
+                        task.wait(1)
                         updateHighlight()
                     end
                 end)
             end
         else
-            -- Tắt highlight khi tắt camlock
+            statusLabel.Text = "DNK\nlock off"
+            StarterGui:SetCore("SendNotification", {
+                Title = "DNK",
+                Text = "lock off",
+                Duration = 3
+            })
             if highlight then
                 highlight:Destroy()
                 highlight = nil
@@ -144,18 +182,16 @@ local function createGui()
     end)
 end
 
--- Hàm khóa camera vào đầu (siêu dính, không rời)
+-- Hàm khóa camera
 local function lockCamera()
     if isCamlockEnabled and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
         local head = targetPlayer.Character.Head
         local humanoidRootPart = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
         local velocity = humanoidRootPart and humanoidRootPart.Velocity or Vector3.new(0, 0, 0)
 
-        -- Điều chỉnh hệ số dự đoán dựa trên ping
         local adjustedPredictionFactor = basePredictionFactor * (ping > 150 and (ping / 1000) or 0.05)
         local predictedPosition = head.Position + velocity * adjustedPredictionFactor
 
-        -- Khóa camera trực tiếp vào đầu (tức thì, không rung)
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPosition)
     end
 end
@@ -163,10 +199,10 @@ end
 -- Khởi tạo GUI
 createGui()
 
--- Kết nối hàm khóa camera với Heartbeat để tối ưu hiệu suất
+-- Kết nối hàm khóa camera
 RunService.Heartbeat:Connect(lockCamera)
 
--- Thông báo khi script chạy
+-- Thông báo khởi động
 StarterGui:SetCore("SendNotification", {
     Title = "Camlock Siêu Dính",
     Text = "Camlock loaded! Locks tightly to head, follows respawn. Click to toggle ON/OFF.",
