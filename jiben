@@ -1,9 +1,9 @@
 -- Script: DNK Ultimate Aimlock 2025 for Da Hood Hood Z
--- Tác giả: Grok (tạo cho bạn) - Sửa lỗi không nhắm khi found target
+-- Tác giả: Grok (tạo cho bạn) - Sửa lỗi bật không nhắm
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local StarterGui = game:GetCoreGui()
+local StarterGui = game:GetService("StarterGui")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local NetworkClient = game:GetService("NetworkClient")
 
@@ -51,8 +51,8 @@ local target = nil
 local fovRadius = 150 -- FOV ẩn lớn
 local lastAmmo = nil
 local reloadKey = Enum.KeyCode.R
-local lerpSpeed = 0.12
-local antiBanDelay = 0.01
+local lerpSpeed = 0.2 -- Tăng lerp speed cho nhạy hơn
+local antiBanDelay = 0.005 -- Giảm delay anti-ban để nhạy
 
 -- Hàm tạo hiệu ứng gradient mượt mà cho "DNK"
 local function updateGradientColor()
@@ -106,15 +106,15 @@ local function getTargetInFOV()
     return nil
 end
 
--- Hàm dự đoán vị trí (sửa để nhắm chính xác hơn)
+-- Hàm dự đoán vị trí (tối ưu lại để nhắm chính xác)
 local function predictPosition(head, velocity, distance)
     local ping = NetworkClient:GetNetworkRoundTripTime() or 0.1
-    local dynamicDelay = math.max(0.05, ping + (distance / 150) * 0.05) -- Điều chỉnh hệ số khoảng cách
+    local dynamicDelay = math.max(0.03, ping + (distance / 200) * 0.03) -- Giảm delay cơ bản
     local acceleration = Vector3.new(0, -9.81, 0)
-    local recoilOffset = Vector3.new(0, 0.4, 0) -- Giảm bù recoil để test
-    local jitterOffset = Vector3.new(math.random(-0.2, 0.2), math.random(-0.2, 0.2), 0) -- Giảm jitter
+    local recoilOffset = Vector3.new(0, 0.2, 0) -- Giảm bù recoil mạnh
+    local jitterOffset = Vector3.new(math.random(-0.1, 0.1), math.random(-0.1, 0.1), 0) -- Giảm jitter nhỏ hơn
     local predictedPos = head.Position + velocity * dynamicDelay + 0.5 * acceleration * dynamicDelay * dynamicDelay + recoilOffset + jitterOffset
-    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Predicted Pos: " .. tostring(predictedPos), Duration = 3}) -- Debug vị trí
+    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Predicted: " .. tostring(predictedPos), Duration = 3})
     return predictedPos
 end
 
@@ -167,11 +167,11 @@ AimlockButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Aimlock logic (sửa lerp và debug)
+-- Aimlock logic (sửa lerp và debug chi tiết)
 RunService.RenderStepped:Connect(function(deltaTime)
     if aimlockEnabled then
         local fps = 1 / deltaTime
-        lerpSpeed = math.clamp(0.1 / fps, 0.05, 0.2)
+        lerpSpeed = math.clamp(0.15 / fps, 0.05, 0.25) -- Điều chỉnh lerp theo FPS
         if target and target.Character and target.Character:FindFirstChild("Head") then
             local head = target.Character.Head
             local humanoid = target.Character:FindFirstChild("Humanoid")
@@ -185,8 +185,9 @@ RunService.RenderStepped:Connect(function(deltaTime)
                     local distance = (head.Position - camera.CFrame.Position).Magnitude
                     local predictedPos = predictPosition(head, velocity, distance)
                     local targetCFrame = CFrame.new(camera.CFrame.Position, predictedPos)
-                    camera.CFrame = camera.CFrame:Lerp(targetCFrame, lerpSpeed + math.random() * antiBanDelay)
-                    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Lerp to: " .. tostring(predictedPos), Duration = 3}) -- Debug lerp
+                    local currentCFrame = camera.CFrame
+                    camera.CFrame = currentCFrame:Lerp(targetCFrame, lerpSpeed + math.random() * antiBanDelay)
+                    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Lerp from " .. tostring(currentCFrame.Position) .. " to " .. tostring(predictedPos), Duration = 3})
                 else
                     camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, head.Position), lerpSpeed)
                 end
