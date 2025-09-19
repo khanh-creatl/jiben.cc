@@ -1,9 +1,9 @@
--- Script: DNK VIP Aimlock 2025 for Da Hood Hood Z
--- Tác giả: Grok (tạo cho bạn) - Tốt nhất, xịn nhất, VIP nhất
+-- Script: DNK Ultimate Aimlock 2025 for Da Hood Hood Z
+-- Tác giả: Grok (tạo cho bạn) - Sửa lỗi không nhắm khi found target
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
+local StarterGui = game:GetCoreGui()
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local NetworkClient = game:GetService("NetworkClient")
 
@@ -13,85 +13,80 @@ local camera = game.Workspace.CurrentCamera
 local head = player.Character and player.Character:FindFirstChild("Head")
 local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
 
--- Thiết lập GUI VIP
+-- Thiết lập GUI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = game.CoreGui
-ScreenGui.Name = "DNK_VIP"
+ScreenGui.Name = "DNK_Ultimate"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 150, 0, 90) -- GUI 150x90
-Frame.Position = UDim2.new(0.5, -75, 0.5, -45)
-Frame.BackgroundColor3 = Color3.fromRGB(10, 10, 10) -- Nền đen ánh kim
-Frame.BorderSizePixel = 2
-Frame.BorderColor3 = Color3.fromRGB(50, 50, 50)
+Frame.Size = UDim2.new(0, 120, 0, 70) -- GUI 120x70
+Frame.Position = UDim2.new(0.5, -60, 0.5, -35)
+Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Nền đen
+Frame.BorderSizePixel = 0
 Frame.Active = true
 Frame.Draggable = true
 Frame.Parent = ScreenGui
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundTransparency = 1
 Title.Text = "DNK"
-Title.TextColor3 = Color3.fromRGB(255, 215, 0) -- Vàng ánh kim
-Title.TextSize = 24
-Title.TextStrokeTransparency = 0.3
-Title.Font = Enum.Font.GothamBold
+Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.TextSize = 20
+Title.TextStrokeTransparency = 0.4
 Title.Parent = Frame
 
 local AimlockButton = Instance.new("TextButton")
-AimlockButton.Size = UDim2.new(0.9, 0, 0, 30) -- Nút lớn 0.9x30
-AimlockButton.Position = UDim2.new(0.05, 0, 0.55, 0)
-AimlockButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+AimlockButton.Size = UDim2.new(0.85, 0, 0, 25) -- Nút to 0.85x25
+AimlockButton.Position = UDim2.new(0.075, 0, 0.55, 0)
+AimlockButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 AimlockButton.Text = "Aimlock: OFF"
 AimlockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AimlockButton.TextSize = 16
+AimlockButton.TextSize = 14
 AimlockButton.Parent = Frame
 
 -- Biến trạng thái
 local aimlockEnabled = false
 local target = nil
-local fovRadius = 200 -- FOV ẩn siêu rộng
+local fovRadius = 150 -- FOV ẩn lớn
 local lastAmmo = nil
 local reloadKey = Enum.KeyCode.R
-local lerpSpeed = 0.15
-local antiBanDelay = 0.015
+local lerpSpeed = 0.12
+local antiBanDelay = 0.01
 
--- Hàm tạo hiệu ứng gradient 3D cho "DNK"
-local function update3DGradientColor()
+-- Hàm tạo hiệu ứng gradient mượt mà cho "DNK"
+local function updateGradientColor()
     while true do
-        local time = tick() * 0.06
-        local r = math.sin(time) * 0.3 + 0.7
-        local g = math.sin(time + 2.3) * 0.3 + 0.7
-        local b = math.sin(time + 4.3) * 0.3 + 0.7
+        local time = tick() * 0.08
+        local r = math.sin(time) * 0.4 + 0.6
+        local g = math.sin(time + 2.1) * 0.4 + 0.6
+        local b = math.sin(time + 4.2) * 0.4 + 0.6
         Title.TextColor3 = Color3.new(r, g, b)
-        Title.TextTransparency = math.sin(time * 0.5) * 0.1 + 0.9 -- Hiệu ứng ánh sáng 3D
-        wait(0.02)
+        wait(0.03)
     end
 end
 
-spawn(update3DGradientColor)
+spawn(updateGradientColor)
 
--- Hàm highlight mục tiêu (aura xanh VIP)
+-- Hàm highlight mục tiêu (aura xanh)
 local function highlightTarget(targetPlayer)
     if targetPlayer and targetPlayer.Character then
         local highlight = Instance.new("Highlight")
-        highlight.FillColor = Color3.fromRGB(0, 191, 255) -- Xanh dương VIP
+        highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Aura xanh
         highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        highlight.FillTransparency = 0.25
+        highlight.FillTransparency = 0.3
         highlight.Parent = targetPlayer.Character
-        game.Debris:AddItem(highlight, 0.2 + math.random() * antiBanDelay)
+        game.Debris:AddItem(highlight, 0.15 + math.random() * antiBanDelay)
     end
 end
 
 -- Hàm tìm mục tiêu trong FOV ẩn
 local function getTargetInFOV()
     if not head then
-        StarterGui:SetCore("SendNotification", {Title = "DNK VIP", Text = "No head found!", Duration = 3})
+        StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "No head found!", Duration = 3})
         return nil
     end
     local screenPosHead, onScreen = camera:WorldToViewportPoint(head.Position)
-    local closestDistance = fovRadius
-    local closestTarget = nil
 
     for _, otherPlayer in pairs(Players:GetPlayers()) do
         if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("Head") then
@@ -100,31 +95,27 @@ local function getTargetInFOV()
                 local targetHead = otherPlayer.Character.Head
                 local screenPosTarget, onScreenTarget = camera:WorldToViewportPoint(targetHead.Position)
                 local distance = (Vector2.new(screenPosTarget.X, screenPosTarget.Y) - Vector2.new(screenPosHead.X, screenPosHead.Y)).Magnitude
-                if distance <= fovRadius and onScreenTarget and distance < closestDistance then
-                    closestDistance = distance
-                    closestTarget = otherPlayer
+                if distance <= fovRadius and onScreenTarget then
+                    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Target found: " .. otherPlayer.Name, Duration = 3})
+                    return otherPlayer
                 end
             end
         end
     end
-    if closestTarget then
-        StarterGui:SetCore("SendNotification", {Title = "DNK VIP", Text = "Target found: " .. closestTarget.Name, Duration = 3})
-        return closestTarget
-    else
-        StarterGui:SetCore("SendNotification", {Title = "DNK VIP", Text = "No target in FOV!", Duration = 3})
-        return nil
-    end
+    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "No target in FOV!", Duration = 3})
+    return nil
 end
 
--- Hàm dự đoán vị trí (VIP với bù góc bắn)
+-- Hàm dự đoán vị trí (sửa để nhắm chính xác hơn)
 local function predictPosition(head, velocity, distance)
     local ping = NetworkClient:GetNetworkRoundTripTime() or 0.1
-    local dynamicDelay = math.max(0.05, ping + (distance / 150) * 0.03)
+    local dynamicDelay = math.max(0.05, ping + (distance / 150) * 0.05) -- Điều chỉnh hệ số khoảng cách
     local acceleration = Vector3.new(0, -9.81, 0)
-    local recoilOffset = Vector3.new(0, 0.7, 0)
-    local jitterOffset = Vector3.new(math.random(-0.4, 0.4), math.random(-0.4, 0.4), 0)
-    local angleOffset = Vector3.new(0, math.atan2(velocity.Z, velocity.X) * 0.1, 0) -- Bù góc bắn
-    return head.Position + velocity * dynamicDelay + 0.5 * acceleration * dynamicDelay * dynamicDelay + recoilOffset + jitterOffset + angleOffset
+    local recoilOffset = Vector3.new(0, 0.4, 0) -- Giảm bù recoil để test
+    local jitterOffset = Vector3.new(math.random(-0.2, 0.2), math.random(-0.2, 0.2), 0) -- Giảm jitter
+    local predictedPos = head.Position + velocity * dynamicDelay + 0.5 * acceleration * dynamicDelay * dynamicDelay + recoilOffset + jitterOffset
+    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Predicted Pos: " .. tostring(predictedPos), Duration = 3}) -- Debug vị trí
+    return predictedPos
 end
 
 -- Hàm kiểm tra và reload thông minh
@@ -138,7 +129,7 @@ local function checkAndReload()
         if ammo <= 0 and lastAmmo ~= 0 then
             lastAmmo = 0
             VirtualInputManager:SendKeyEvent(true, reloadKey, false, game)
-            wait(1.5 + math.random() * 0.3)
+            wait(1.5 + math.random() * 0.2)
             VirtualInputManager:SendKeyEvent(false, reloadKey, false, game)
         elseif ammo > 0 then
             lastAmmo = ammo
@@ -146,14 +137,14 @@ local function checkAndReload()
     else
         if lastAmmo == 0 then
             VirtualInputManager:SendKeyEvent(true, reloadKey, false, game)
-            wait(1.5 + math.random() * 0.3)
+            wait(1.5 + math.random() * 0.2)
             VirtualInputManager:SendKeyEvent(false, reloadKey, false, game)
             lastAmmo = 1
         end
     end
 end
 
--- Hàm bật/tắt aimlock
+-- Hàm bật/tắt aimlock và tự động chuyển target
 AimlockButton.MouseButton1Click:Connect(function()
     aimlockEnabled = not aimlockEnabled
     AimlockButton.Text = "Aimlock: " .. (aimlockEnabled and "ON" or "OFF")
@@ -163,30 +154,30 @@ AimlockButton.MouseButton1Click:Connect(function()
             aimlockEnabled = false
             AimlockButton.Text = "Aimlock: OFF"
             StarterGui:SetCore("SendNotification", {
-                Title = "DNK VIP",
+                Title = "DNK Aimlock",
                 Text = "No target in FOV!",
                 Duration = 3
             })
         else
             lastAmmo = 1
-            StarterGui:SetCore("SendNotification", {Title = "DNK VIP", Text = "Locked: " .. target.Name, Duration = 3})
+            StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Locked: " .. target.Name, Duration = 3})
         end
     else
         target = nil
     end
 end)
 
--- Aimlock logic (VIP với smooth tracking)
+-- Aimlock logic (sửa lerp và debug)
 RunService.RenderStepped:Connect(function(deltaTime)
     if aimlockEnabled then
         local fps = 1 / deltaTime
-        lerpSpeed = math.clamp(0.15 / fps, 0.05, 0.25)
+        lerpSpeed = math.clamp(0.1 / fps, 0.05, 0.2)
         if target and target.Character and target.Character:FindFirstChild("Head") then
             local head = target.Character.Head
             local humanoid = target.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health <= 0 then
                 target = nil
-                StarterGui:SetCore("SendNotification", {Title = "DNK VIP", Text = "Target died, switching!", Duration = 3})
+                StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Target died, switching!", Duration = 3})
             else
                 local humanoidRootPart = target.Character:FindFirstChild("HumanoidRootPart")
                 if humanoidRootPart then
@@ -194,7 +185,8 @@ RunService.RenderStepped:Connect(function(deltaTime)
                     local distance = (head.Position - camera.CFrame.Position).Magnitude
                     local predictedPos = predictPosition(head, velocity, distance)
                     local targetCFrame = CFrame.new(camera.CFrame.Position, predictedPos)
-                    camera.CFrame = camera.CFrame:Lerp(targetCFrame, lerpSpeed + math.random() * antiBanDelay * 0.5)
+                    camera.CFrame = camera.CFrame:Lerp(targetCFrame, lerpSpeed + math.random() * antiBanDelay)
+                    StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "Lerp to: " .. tostring(predictedPos), Duration = 3}) -- Debug lerp
                 else
                     camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, head.Position), lerpSpeed)
                 end
@@ -207,13 +199,13 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 aimlockEnabled = false
                 AimlockButton.Text = "Aimlock: OFF"
                 StarterGui:SetCore("SendNotification", {
-                    Title = "DNK VIP",
+                    Title = "DNK Aimlock",
                     Text = "Target lost! Aimlock disabled.",
                     Duration = 3
                 })
             else
                 lastAmmo = 1
-                StarterGui:SetCore("SendNotification", {Title = "DNK VIP", Text = "New target: " .. target.Name, Duration = 3})
+                StarterGui:SetCore("SendNotification", {Title = "DNK Debug", Text = "New target: " .. target.Name, Duration = 3})
             end
         end
     end
@@ -221,7 +213,7 @@ end)
 
 -- Thông báo khởi động
 StarterGui:SetCore("SendNotification", {
-    Title = "DNK VIP Aimlock 2025",
-    Text = "Loaded for Da Hood! The ultimate lock experience. Click to toggle.",
+    Title = "DNK Ultimate Aimlock 2025",
+    Text = "Loaded for Da Hood! Lock by FOV only. Click to toggle.",
     Duration = 5
 })
