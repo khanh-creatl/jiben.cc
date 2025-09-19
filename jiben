@@ -10,9 +10,12 @@ local HttpService = game:GetService("HttpService")
 local isCamlockEnabled = false
 local targetPlayer = nil
 local basePredictionFactor = 0.15 -- Hệ số dự đoán cơ bản cho ping cao
-local colorChangeSpeed = 0.05 -- Tốc độ đổi màu nút GUI
+local colorChangeSpeed = 0.05 -- Tốc độ đổi màu GUI
 local highlight = nil
 local ping = 0 -- Biến lưu giá trị ping
+local dragging = false
+local dragStart = nil
+local startPos = nil
 
 -- Hàm lấy ping gần đúng
 local function getPing()
@@ -55,42 +58,52 @@ local function createGui()
     screenGui.Name = "CamlockGui"
     screenGui.IgnoreGuiInset = true
 
-    -- TextLabel hiển thị trạng thái ON/OFF với hiệu ứng đổi màu
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(0, 100, 0, 50)
-    statusLabel.Position = UDim2.new(0.5, -50, 0.85, -25) -- Vị trí phía trên nút
-    statusLabel.Text = "OFF"
-    statusLabel.BackgroundTransparency = 0.3 -- Nền mờ để đổi màu nổi bật
-    statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    statusLabel.Font = Enum.Font.SourceSansBold
-    statusLabel.TextSize = 20
-    statusLabel.Parent = screenGui
+    -- Frame chứa GUI với hiệu ứng đổi màu
+    local guiFrame = Instance.new("Frame")
+    guiFrame.Size = UDim2.new(0, 120, 0, 100)
+    guiFrame.Position = UDim2.new(0.5, -60, 0.9, -50)
+    guiFrame.BackgroundTransparency = 0.3
+    guiFrame.Active = true -- Cho phép kéo
+    guiFrame.Draggable = true -- Cho phép di chuyển
+    guiFrame.Parent = screenGui
 
-    -- Hiệu ứng đổi màu liên tục
+    -- TextLabel "DNK" với hiệu ứng đổi màu
+    local dnkLabel = Instance.new("TextLabel")
+    dnkLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    dnkLabel.Position = UDim2.new(0, 0, 0, 0)
+    dnkLabel.Text = "DNK"
+    dnkLabel.BackgroundTransparency = 1
+    dnkLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    dnkLabel.Font = Enum.Font.SourceSansBold
+    dnkLabel.TextSize = 24
+    dnkLabel.Parent = guiFrame
+
+    -- Hiệu ứng đổi màu liên tục cho Frame
     spawn(function()
         while true do
             for i = 0, 1, colorChangeSpeed do
-                statusLabel.BackgroundColor3 = Color3.fromHSV(i, 1, 1)
+                guiFrame.BackgroundColor3 = Color3.fromHSV(i, 1, 1)
                 task.wait()
             end
         end
     end)
 
-    -- Nút toggle ON/OFF
+    -- Nút ON/OFF
     local toggleButton = Instance.new("TextButton")
-    toggleButton.Size = UDim2.new(0, 100, 0, 50)
-    toggleButton.Position = UDim2.new(0.5, -50, 0.9, -25) -- Vị trí dưới cùng
-    toggleButton.Text = "Toggle"
-    toggleButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255) -- Màu xanh cố định
+    toggleButton.Size = UDim2.new(1, 0, 0.5, 0)
+    toggleButton.Position = UDim2.new(0, 0, 0.5, 0)
+    toggleButton.Text = "OFF"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     toggleButton.Font = Enum.Font.SourceSansBold
     toggleButton.TextSize = 20
-    toggleButton.Parent = screenGui
+    toggleButton.Parent = guiFrame
 
     -- Bật/tắt camlock khi nhấn nút
     toggleButton.MouseButton1Click:Connect(function()
         isCamlockEnabled = not isCamlockEnabled
-        statusLabel.Text = isCamlockEnabled and "ON" or "OFF"
+        toggleButton.Text = isCamlockEnabled and "ON" or "OFF"
+        toggleButton.BackgroundColor3 = isCamlockEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 
         if isCamlockEnabled then
             -- Chọn người chơi gần nhất để khóa
