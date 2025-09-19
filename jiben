@@ -12,9 +12,101 @@ local CamLockEnabled = false
 local LockedPlayer = nil
 local Gui = nil
 local LastTargetPosition = nil
-local PredictionFactor = 0.35 -- Hệ số dự đoán mạnh hơn
+local PredictionFactor = 0.35 -- Dự đoán mạnh
 local TargetPartName = "Head" -- Khóa vào đầu
-local FOVRadius = 150 -- Giới hạn FOV để dính mục tiêu gần tâm
+local ProximityRadius = 50 -- Bán kính tìm kiếm gần (kế bên hoặc trước mặt)
+
+-- Tạo GUI
+local function CreateGUI()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Parent = game.CoreGui
+    ScreenGui.Name = "DNKCamLock"
+
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0, 150, 0, 100)
+    Frame.Position = UDim2.new(0.5, -75, 0.5, -50)
+    Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Frame.BackgroundTransparency = 0.5
+    Frame.Parent = ScreenGui
+    Frame.Active = true
+    Frame.Draggable = true
+
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 30)
+    Title.Position = UDim2.new(0, 0, 0, 0)
+    Title.BackgroundTransparency = 1
+    Title.Text = "DNK"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextScaled = true
+    Title.Font = Enum.Font.SourceSansBold
+    Title.Parent = Frame
+
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Size = UDim2.new(0.8, 0, 0, 40)
+    ToggleButton.Position = UDim2.new(0.1, 0, 0.3, 0)
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    ToggleButton.Text = "OFF"
+    ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+    ToggleButton.TextScaled = true
+    ToggleButton.Font = Enum.Font.SourceSans
+    ToggleButton.Parent = Frame
+
+    -- Hiệu ứng đổi màu cho tiêu đề
+    local function ChangeTitleColor()
+        while true do
+            local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+            local colors = {
+                Color3.fromRGB(255, 0, 0),
+                Color3.fromRGB(0, 255, 0),
+                Color3.fromRGB(0, 0, 255),
+                Color3.fromRGB(255, 255, 0)
+            }
+            for _, color in ipairs(colors) do
+                TweenService:Create(Title, tweenInfo, {TextColor3 = color}):Play()
+                task.wait(1)
+            end
+        end
+    end
+    task.spawn(ChangeTitleColor)
+
+    -- Xử lý nút bật/tắt CamLock
+    ToggleButton.MouseButton1Click:Connect(function()
+        CamLockEnabled = not CamLockEnabled
+        ToggleButton.Text = CamLockEnabled and "ON" or "OFF"
+        ToggleButton.TextColor3 = CamLockEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        if CamLockEnabled then
+            LockedPlayer = FindTarget() -- Chọn mục tiêu khi bật ON
+        else
+            LockedPlayer = nil
+            for _, player in pairs(Players:GetPlayers()) do
+                if player.Character and player.Character:FindFirstChild("Highlight") then
+                    player.Character.Highlight:Destroy()
+                end
+            end
+        end
+    end)
+
+    -- Phím tắt bật/tắt (phím E)
+    UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+        if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.E then
+            CamLockEnabled = not CamLockEnabled
+            ToggleButton.Text = CamLockEnabled and "ON" or "OFF"
+            ToggleButton.TextColor3 = CamLockEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+            if CamLockEnabled then
+                LockedPlayer = FindTarget() -- Chọn mục tiêu khi bật ON
+            else
+                LockedPlayer = nil
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player.Character and player.Character:FindFirstChild("Highlight") then
+                        player.Character.Highlight:Destroy()
+                    end
+                end
+            end
+        end
+    end)
+
+    Gui = ScreenGui
+end
 
 -- Tạo Highlight cho mục tiêu
 local function CreateHighlight(character)
@@ -37,53 +129,36 @@ local function GetPing()
     return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() or 150
 end
 
--- Chọn người chơi bằng raycast từ con trỏ chuột
-local function LockOnTarget()
+-- Tìm mục tiêu kế bên hoặc trước mặt
+local function FindTarget()
+    local closestPlayer = nil
+    local closestDistance = math.huge
     local mouse = LocalPlayer:GetMouse()
-    local ray = Camera:ScreenPointToRay(mouse.X, mouse.Y)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    local raycastResult = workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+    local mousePos = Vector2.new(mouse.X, mouse.Y)
 
-    if raycastResult and raycastResult.Instance then
-        local model = raycastResult.Instance:FindFirstAncestorOfClass("Model")
-        if model then
-            local player = Players:GetPlayerFromCharacter(model)
-            if player and player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-                LockedPlayer = player
-                MonitorPlayerRespawn(player)
-                if Gui then
-                    local textBox = Gui.Frame:FindFirstChild("TextBox")
-                    if textBox then
-                        textBox.Text = "Locked: " .. player.Name
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if myRoot then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+                local targetPart = player.Character:FindFirstChild(TargetPartName) or player.Character:FindFirstChild("HumanoidRootPart")
+                if targetPart then
+                    local distance = (myRoot.Position - targetPart.Position).Magnitude
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                    local screenDistance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+
+                    -- Ưu tiên mục tiêu gần bạn và trong tầm nhìn
+                    if distance < ProximityRadius and onScreen and screenDistance < FOVRadius and distance < closestDistance then
+                        closestDistance = distance
+                        closestPlayer = player
                     end
                 end
-                return true
             end
         end
     end
-    -- Thông báo nếu không tìm thấy người chơi
-    if Gui then
-        local textBox = Gui.Frame:FindFirstChild("TextBox")
-        if textBox then
-            textBox.Text = "No player found!"
-            task.wait(2)
-            textBox.Text = "Enter Player Name or Click ON"
-        end
-    end
-    return false
+    return closestPlayer
 end
 
--- Tìm mục tiêu (ưu tiên mục tiêu đã chọn)
-local function FindTarget()
-    if LockedPlayer and LockedPlayer.Character and LockedPlayer.Character:FindFirstChild("Humanoid") and LockedPlayer.Character.Humanoid.Health > 0 then
-        return LockedPlayer -- Ưu tiên mục tiêu đã chọn
-    end
-    return nil -- Không tự động tìm mục tiêu mới
-end
-
--- Theo dõi hồi sinh của mục tiêu
+-- Theo dõi hồi sinh
 local function MonitorPlayerRespawn(player)
     if not player then return end
     player.CharacterAdded:Connect(function(newCharacter)
@@ -97,176 +172,23 @@ local function MonitorPlayerRespawn(player)
     end)
 end
 
--- Tạo GUI
-local function CreateGUI()
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Parent = game.CoreGui
-    ScreenGui.Name = "DNKCamLock"
-
-    local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(0, 150, 0, 150)
-    Frame.Position = UDim2.new(0.5, -75, 0.5, -75)
-    Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    Frame.BackgroundTransparency = 0.5
-    Frame.Parent = ScreenGui
-    Frame.Active = true
-    Frame.Draggable = true
-
-    local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, 0, 0, 30)
-    Title.Position = UDim2.new(0, 0, 0, 0)
-    Title.BackgroundTransparency = 1
-    Title.Text = "DNK CamLock"
-    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Title.TextScaled = true
-    Title.Font = Enum.Font.SourceSansBold
-    Title.Parent = Frame
-
-    local ToggleButton = Instance.new("TextButton")
-    ToggleButton.Size = UDim2.new(0.8, 0, 0, 40)
-    ToggleButton.Position = UDim2.new(0.1, 0, 0.3, 0)
-    ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    ToggleButton.Text = "OFF"
-    ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
-    ToggleButton.TextScaled = true
-    ToggleButton.Font = Enum.Font.SourceSans
-    ToggleButton.Name = "TextButton"
-    ToggleButton.Parent = Frame
-
-    local PlayerNameInput = Instance.new("TextBox")
-    PlayerNameInput.Size = UDim2.new(0.8, 0, 0, 30)
-    PlayerNameInput.Position = UDim2.new(0.1, 0, 0.6, 0)
-    PlayerNameInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    PlayerNameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-    PlayerNameInput.Text = "Enter Player Name or Click ON"
-    PlayerNameInput.TextScaled = true
-    PlayerNameInput.Font = Enum.Font.SourceSans
-    PlayerNameInput.Name = "TextBox"
-    PlayerNameInput.Parent = Frame
-
-    -- Hiệu ứng đổi màu cho tiêu đề
-    local function ChangeTitleColor()
-        while true do
-            local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
-            local colors = {
-                Color3.fromRGB(255, 0, 0),
-                Color3.fromRGB(0, 255, 0),
-                Color3.fromRGB(0, 0, 255),
-                Color3.fromRGB(255, 255, 0)
-            }
-            for _, color in ipairs(colors) do
-                TweenService:Create(Title, tweenInfo, {TextColor3 = color}):Play()
-                task.wait(1)
-            end
-        end
-    end
-    task.spawn(ChangeTitleColor)
-
-    -- Xử lý nút ON/OFF
-    ToggleButton.MouseButton1Click:Connect(function()
-        if not CamLockEnabled then
-            -- Khi nhấn ON, chọn người chơi đang nhìn
-            if LockOnTarget() then
-                CamLockEnabled = true
-                ToggleButton.Text = "ON"
-                ToggleButton.TextColor3 = Color3.fromRGB(0, 255, 0)
-            end
-        else
-            -- Khi nhấn OFF, tắt CamLock và xóa mục tiêu
-            CamLockEnabled = false
-            LockedPlayer = nil
-            ToggleButton.Text = "OFF"
-            ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
-            PlayerNameInput.Text = "Enter Player Name or Click ON"
-            for _, player in pairs(Players:GetPlayers()) do
-                if player.Character and player.Character:FindFirstChild("Highlight") then
-                    player.Character.Highlight:Destroy()
-                end
-            end
-        end
-    end)
-
-    -- Phím tắt bật/tắt (phím E)
-    UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-        if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.E then
-            if not CamLockEnabled then
-                -- Khi nhấn E để bật, chọn người chơi đang nhìn
-                if LockOnTarget() then
-                    CamLockEnabled = true
-                    ToggleButton.Text = "ON"
-                    ToggleButton.TextColor3 = Color3.fromRGB(0, 255, 0)
-                end
-            else
-                -- Khi nhấn E để tắt
-                CamLockEnabled = false
-                LockedPlayer = nil
-                ToggleButton.Text = "OFF"
-                ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
-                PlayerNameInput.Text = "Enter Player Name or Click ON"
-                for _, player in pairs(Players:GetPlayers()) do
-                    if player.Character and player.Character:FindFirstChild("Highlight") then
-                        player.Character.Highlight:Destroy()
-                    end
-                end
-            end
-        end
-    end)
-
-    -- Xử lý nhập tên người chơi
-    PlayerNameInput.FocusLost:Connect(function(enterPressed)
-        if enterPressed then
-            local targetName = PlayerNameInput.Text
-            local targetPlayer = Players:FindFirstChild(targetName)
-            if targetPlayer and targetPlayer ~= LocalPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") and targetPlayer.Character.Humanoid.Health > 0 then
-                LockedPlayer = targetPlayer
-                MonitorPlayerRespawn(targetPlayer)
-                PlayerNameInput.Text = "Locked: " .. targetName
-                CamLockEnabled = true
-                ToggleButton.Text = "ON"
-                ToggleButton.TextColor3 = Color3.fromRGB(0, 255, 0)
-            else
-                PlayerNameInput.Text = "Player not found!"
-                task.wait(2)
-                PlayerNameInput.Text = "Enter Player Name or Click ON"
-            end
-        end
-    end)
-
-    Gui = ScreenGui
-end
-
 -- Xử lý CamLock
 RunService.RenderStepped:Connect(function(deltaTime)
     if CamLockEnabled and LocalPlayer.Character then
-        -- Kiểm tra mục tiêu hiện tại
+        -- Nếu không có mục tiêu hoặc mục tiêu không hợp lệ, không tìm lại
         if not LockedPlayer or not LockedPlayer.Character or not LockedPlayer.Character:FindFirstChild("Humanoid") or LockedPlayer.Character.Humanoid.Health <= 0 then
             LockedPlayer = nil
-            CamLockEnabled = false
-            if Gui then
-                local toggleButton = Gui.Frame:FindFirstChild("TextButton")
-                local textBox = Gui.Frame:FindFirstChild("TextBox")
-                if toggleButton then
-                    toggleButton.Text = "OFF"
-                    toggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
-                end
-                if textBox then
-                    textBox.Text = "Enter Player Name or Click ON"
-                end
-            end
             for _, player in pairs(Players:GetPlayers()) do
                 if player.Character and player.Character:FindFirstChild("Highlight") then
                     player.Character.Highlight:Destroy()
                 end
             end
-        end
-
-        -- Khóa vào mục tiêu nếu hợp lệ
-        if LockedPlayer and LockedPlayer.Character and (LockedPlayer.Character:FindFirstChild(TargetPartName) or LockedPlayer.Character:FindFirstChild("HumanoidRootPart")) then
+        elseif LockedPlayer and LockedPlayer.Character and (LockedPlayer.Character:FindFirstChild(TargetPartName) or LockedPlayer.Character:FindFirstChild("HumanoidRootPart")) then
             local targetPart = LockedPlayer.Character:FindFirstChild(TargetPartName) or LockedPlayer.Character.HumanoidRootPart
             local targetPos = targetPart.Position
-            local ping = GetPing() / 1000 -- Chuyển đổi ping sang giây
+            local ping = GetPing() / 1000
 
-            -- Dự đoán vị trí dựa trên lịch sử vị trí
+            -- Dự đoán vị trí
             if LastTargetPosition then
                 local velocity = (targetPart.Position - LastTargetPosition) / deltaTime
                 targetPos = targetPos + velocity * ping * PredictionFactor
@@ -276,20 +198,12 @@ RunService.RenderStepped:Connect(function(deltaTime)
             -- Khóa camera tức thời
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
 
-            -- Thêm highlight cho mục tiêu
+            -- Thêm highlight
             if not targetPart.Parent:FindFirstChild("Highlight") then
                 CreateHighlight(targetPart.Parent)
             end
-        else
-            -- Xóa highlight cho các nhân vật khác
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LockedPlayer and player.Character and player.Character:FindFirstChild("Highlight") then
-                    player.Character.Highlight:Destroy()
-                end
-            end
         end
     else
-        -- Xóa highlight khi tắt CamLock
         for _, player in pairs(Players:GetPlayers()) do
             if player.Character and player.Character:FindFirstChild("Highlight") then
                 player.Character.Highlight:Destroy()
@@ -304,6 +218,6 @@ CreateGUI()
 -- Thông báo khởi động
 StarterGui:SetCore("SendNotification", {
     Title = "DNK CamLock",
-    Text = "script lock by dnk .",
+    Text = "CamLock Loaded! Press 'E' or use GUI to toggle. Locks player next to or in front of you.",
     Duration = 5
 })
