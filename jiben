@@ -14,7 +14,7 @@ local Gui = nil
 local LastTargetPosition = nil
 local PredictionFactor = 0.35 -- Dự đoán mạnh
 local TargetPartName = "Head" -- Khóa vào đầu
-local ProximityRadius = 50 -- Bán kính tìm kiếm gần (kế bên hoặc trước mặt)
+local FOVRadius = 200 -- Phạm vi hướng nhìn
 
 -- Tạo GUI
 local function CreateGUI()
@@ -75,7 +75,17 @@ local function CreateGUI()
         ToggleButton.Text = CamLockEnabled and "ON" or "OFF"
         ToggleButton.TextColor3 = CamLockEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
         if CamLockEnabled then
-            LockedPlayer = FindTarget() -- Chọn mục tiêu khi bật ON
+            LockedPlayer = FindTarget() -- Chọn mục tiêu bạn đang nhìn khi bật ON
+            if not LockedPlayer then
+                StarterGui:SetCore("SendNotification", {
+                    Title = "DNK CamLock",
+                    Text = "No player in sight!",
+                    Duration = 3
+                })
+                CamLockEnabled = false
+                ToggleButton.Text = "OFF"
+                ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+            end
         else
             LockedPlayer = nil
             for _, player in pairs(Players:GetPlayers()) do
@@ -93,7 +103,17 @@ local function CreateGUI()
             ToggleButton.Text = CamLockEnabled and "ON" or "OFF"
             ToggleButton.TextColor3 = CamLockEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
             if CamLockEnabled then
-                LockedPlayer = FindTarget() -- Chọn mục tiêu khi bật ON
+                LockedPlayer = FindTarget() -- Chọn mục tiêu bạn đang nhìn khi bật ON
+                if not LockedPlayer then
+                    StarterGui:SetCore("SendNotification", {
+                        Title = "DNK CamLock",
+                        Text = "No player in sight!",
+                        Duration = 3
+                    })
+                    CamLockEnabled = false
+                    ToggleButton.Text = "OFF"
+                    ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+                end
             else
                 LockedPlayer = nil
                 for _, player in pairs(Players:GetPlayers()) do
@@ -129,28 +149,25 @@ local function GetPing()
     return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() or 150
 end
 
--- Tìm mục tiêu kế bên hoặc trước mặt
+-- Tìm mục tiêu bạn đang nhìn
 local function FindTarget()
     local closestPlayer = nil
-    local closestDistance = math.huge
+    local closestScore = math.huge
     local mouse = LocalPlayer:GetMouse()
     local mousePos = Vector2.new(mouse.X, mouse.Y)
 
-    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if myRoot then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-                local targetPart = player.Character:FindFirstChild(TargetPartName) or player.Character:FindFirstChild("HumanoidRootPart")
-                if targetPart then
-                    local distance = (myRoot.Position - targetPart.Position).Magnitude
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-                    local screenDistance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local targetPart = player.Character:FindFirstChild(TargetPartName) or player.Character:FindFirstChild("HumanoidRootPart")
+            if targetPart then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                local screenDistance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
 
-                    -- Ưu tiên mục tiêu gần bạn và trong tầm nhìn
-                    if distance < ProximityRadius and onScreen and screenDistance < FOVRadius and distance < closestDistance then
-                        closestDistance = distance
-                        closestPlayer = player
-                    end
+                -- Ưu tiên mục tiêu gần tâm màn hình
+                local score = screenDistance
+                if onScreen and screenDistance < FOVRadius and score < closestScore then
+                    closestScore = score
+                    closestPlayer = player
                 end
             end
         end
@@ -182,6 +199,19 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 if player.Character and player.Character:FindFirstChild("Highlight") then
                     player.Character.Highlight:Destroy()
                 end
+            end
+            CamLockEnabled = false
+            if Gui then
+                local ToggleButton = Gui:FindFirstChild("Frame"):FindFirstChild("ToggleButton")
+                if ToggleButton then
+                    ToggleButton.Text = "OFF"
+                    ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+                end
+                StarterGui:SetCore("SendNotification", {
+                    Title = "DNK CamLock",
+                    Text = "Target lost!",
+                    Duration = 3
+                })
             end
         elseif LockedPlayer and LockedPlayer.Character and (LockedPlayer.Character:FindFirstChild(TargetPartName) or LockedPlayer.Character:FindFirstChild("HumanoidRootPart")) then
             local targetPart = LockedPlayer.Character:FindFirstChild(TargetPartName) or LockedPlayer.Character.HumanoidRootPart
@@ -218,6 +248,6 @@ CreateGUI()
 -- Thông báo khởi động
 StarterGui:SetCore("SendNotification", {
     Title = "DNK CamLock",
-    Text = "CamLock Loaded! Press 'E' or use GUI to toggle. Locks player next to or in front of you.",
+    Text = "CamLock Loaded! Look at a player and press 'E' or use GUI to toggle.",
     Duration = 5
 })
