@@ -1,6 +1,6 @@
 -- DNK-Style Cam Lock for Mobile (Da Hood/Hood Z) - 2025
--- Features: GUI with black ON/OFF button, red "DNK" loading text, blur effect, invisible FOV
--- Toggle: Tap ON/OFF button to lock head (aim by holding phone)
+-- Features: Simple GUI with black ON/OFF button, red "DNK" loading animation, invisible FOV, lock by aiming + ON button, red highlight through walls
+-- Usage: Aim at target, tap ON to lock head (follows movement), tap OFF to stop, target highlighted red
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -13,20 +13,7 @@ local CamLockEnabled = false
 local Target = nil
 local FOVRadius = 100 -- Bán kính lock, tối ưu mobile
 local Prediction = 0.14 -- Giảm lag
-
--- GUI Lib (Rayfield, mobile-friendly)
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local Window = Rayfield:CreateWindow({
-    Name = "DNK Cam Lock",
-    LoadingTitle = "DNK Loader",
-    LoadingSubtitle = "by DNK",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "DNKHubMobile",
-        FileName = "dahood_lock"
-    },
-    KeySystem = false
-})
+local Highlight = nil -- Highlight đỏ
 
 -- Loading Effect: Mờ màn hình + text đỏ "DNK" 1s
 local ScreenGui = Instance.new("ScreenGui")
@@ -57,7 +44,35 @@ Frame:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Quad", 0.5, true, function()
     print("Loading done! Script by DNK") -- TB console
 end)
 
--- Tìm target gần nhất trong FOV (tàng hình)
+-- Simple GUI: Chỉ button ON/OFF
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "DNKGui"
+Gui.Parent = game.CoreGui
+local FrameGui = Instance.new("Frame")
+FrameGui.Size = UDim2.new(0, 100, 0, 80) -- Nhỏ gọn
+FrameGui.Position = UDim2.new(0.02, 0, 0.02, 0) -- Góc trên trái
+FrameGui.BackgroundColor3 = Color3.new(0, 0, 0)
+FrameGui.BackgroundTransparency = 0.3
+FrameGui.Parent = Gui
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.Text = "DNK"
+Title.TextColor3 = Color3.new(1, 0, 0)
+Title.TextScaled = true
+Title.Font = Enum.Font.GothamBold
+Title.Parent = FrameGui
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(0, 80, 0, 30)
+ToggleButton.Position = UDim2.new(0.1, 0, 0.5, 0)
+ToggleButton.BackgroundColor3 = Color3.new(0, 0, 0)
+ToggleButton.Text = "OFF"
+ToggleButton.TextColor3 = Color3.new(1, 1, 1)
+ToggleButton.TextScaled = true
+ToggleButton.Font = Enum.Font.Gotham
+ToggleButton.Parent = FrameGui
+
+-- Tìm player gần nhất tại tâm màn hình
 local function GetClosestPlayer()
     local Closest, Shortest = nil, FOVRadius
     for _, Player in pairs(Players:GetPlayers()) do
@@ -83,32 +98,52 @@ local function LockCamera()
     end
 end
 
--- GUI: Button ON/OFF
-local MainTab = Window:CreateTab("Cam Lock", 4483362458)
-MainTab:CreateToggle({
-    Name = "Cam Lock (Head)",
-    CurrentValue = false,
-    Flag = "CamLockEnabled",
-    Callback = function(Value)
-        CamLockEnabled = Value
-        if Value then
-            print("DNK Cam Lock: ON")
-        else
-            print("DNK Cam Lock: OFF")
-            Target = nil
-        end
+-- Highlight đỏ xuyên tường
+local function UpdateHighlight()
+    if Highlight then Highlight:Destroy() end
+    if Target and Target.Character then
+        Highlight = Instance.new("Highlight")
+        Highlight.FillColor = Color3.new(1, 0, 0) -- Đỏ
+        Highlight.OutlineColor = Color3.new(1, 0, 0)
+        Highlight.FillTransparency = 0.5
+        Highlight.OutlineTransparency = 0
+        Highlight.Adornee = Target.Character
+        Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- Xuyên tường
+        Highlight.Parent = Target.Character
     end
-})
+end
+
+-- Toggle logic
+ToggleButton.MouseButton1Click:Connect(function()
+    CamLockEnabled = not CamLockEnabled
+    ToggleButton.Text = CamLockEnabled and "ON" or "OFF"
+    if CamLockEnabled then
+        Target = GetClosestPlayer()
+        if Target then
+            print("Locked on: " .. Target.Name)
+            UpdateHighlight()
+        end
+    else
+        Target = nil
+        if Highlight then Highlight:Destroy() end
+        print("DNK Cam Lock: OFF")
+    end
+end)
 
 -- Main loop
 RunService.Heartbeat:Connect(function()
-    if CamLockEnabled then
-        Target = GetClosestPlayer()
-        if Target then LockCamera() end
+    if CamLockEnabled and Target then
+        LockCamera()
+        UpdateHighlight()
     end
 end)
 
 -- Cleanup
-Players.PlayerRemoving:Connect(function(P) if P == Target then Target = nil end end)
+Players.PlayerRemoving:Connect(function(P)
+    if P == Target then
+        Target = nil
+        if Highlight then Highlight:Destroy() end
+    end
+end)
 
-print("DNK Cam Lock Loaded! Tap ON button to lock head.")
+print("DNK Cam Lock Loaded! Aim at target, tap ON button to lock (red highlight).")
