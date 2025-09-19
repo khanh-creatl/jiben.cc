@@ -55,30 +55,42 @@ local function createGui()
     screenGui.Name = "CamlockGui"
     screenGui.IgnoreGuiInset = true
 
-    local guiButton = Instance.new("TextButton")
-    guiButton.Size = UDim2.new(0, 100, 0, 50)
-    guiButton.Position = UDim2.new(0.5, -50, 0.9, -25)
-    guiButton.Text = "OFF"
-    guiButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    guiButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    guiButton.Font = Enum.Font.SourceSansBold
-    guiButton.TextSize = 20
-    guiButton.Parent = screenGui
+    -- TextLabel hiển thị trạng thái ON/OFF với hiệu ứng đổi màu
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0, 100, 0, 50)
+    statusLabel.Position = UDim2.new(0.5, -50, 0.85, -25) -- Vị trí phía trên nút
+    statusLabel.Text = "OFF"
+    statusLabel.BackgroundTransparency = 0.3 -- Nền mờ để đổi màu nổi bật
+    statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusLabel.Font = Enum.Font.SourceSansBold
+    statusLabel.TextSize = 20
+    statusLabel.Parent = screenGui
 
     -- Hiệu ứng đổi màu liên tục
     spawn(function()
         while true do
             for i = 0, 1, colorChangeSpeed do
-                guiButton.BackgroundColor3 = Color3.fromHSV(i, 1, 1)
+                statusLabel.BackgroundColor3 = Color3.fromHSV(i, 1, 1)
                 task.wait()
             end
         end
     end)
 
+    -- Nút toggle ON/OFF
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Size = UDim2.new(0, 100, 0, 50)
+    toggleButton.Position = UDim2.new(0.5, -50, 0.9, -25) -- Vị trí dưới cùng
+    toggleButton.Text = "Toggle"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255) -- Màu xanh cố định
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.Font = Enum.Font.SourceSansBold
+    toggleButton.TextSize = 20
+    toggleButton.Parent = screenGui
+
     -- Bật/tắt camlock khi nhấn nút
-    guiButton.MouseButton1Click:Connect(function()
+    toggleButton.MouseButton1Click:Connect(function()
         isCamlockEnabled = not isCamlockEnabled
-        guiButton.Text = isCamlockEnabled and "ON" or "OFF"
+        statusLabel.Text = isCamlockEnabled and "ON" or "OFF"
 
         if isCamlockEnabled then
             -- Chọn người chơi gần nhất để khóa
