@@ -11,11 +11,10 @@ local Camera = game.Workspace.CurrentCamera
 local CamLockEnabled = false
 local LockedPlayer = nil
 local Gui = nil
-local Smoothness = 0.02 -- Giảm Smoothness xuống tối đa để aim gần như tức thời
-local PredictionFactor = 0.35 -- Tăng dự đoán để bám sát mục tiêu nhanh
 local LastTargetPosition = nil
+local PredictionFactor = 0.35 -- Hệ số dự đoán mạnh hơn
 local TargetPartName = "Head" -- Khóa vào đầu
-local FOVRadius = 200 -- Giảm FOV để tập trung vào mục tiêu gần tâm
+local FOVRadius = 200 -- Giới hạn FOV để dính mục tiêu gần tâm
 
 -- Tạo GUI
 local function CreateGUI()
@@ -36,7 +35,7 @@ local function CreateGUI()
     Title.Size = UDim2.new(1, 0, 0, 30)
     Title.Position = UDim2.new(0, 0, 0, 0)
     Title.BackgroundTransparency = 1
-    Title.Text = "DNK CamLock"
+    Title.Text = "DNK"
     Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.TextScaled = true
     Title.Font = Enum.Font.SourceSansBold
@@ -54,14 +53,14 @@ local function CreateGUI()
 
     -- Hiệu ứng đổi màu cho tiêu đề
     local function ChangeTitleColor()
-        local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
-        local colors = {
-            Color3.fromRGB(255, 0, 0),
-            Color3.fromRGB(0, 255, 0),
-            Color3.fromRGB(0, 0, 255),
-            Color3.fromRGB(255, 255, 0)
-        }
         while true do
+            local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+            local colors = {
+                Color3.fromRGB(255, 0, 0),
+                Color3.fromRGB(0, 255, 0),
+                Color3.fromRGB(0, 0, 255),
+                Color3.fromRGB(255, 255, 0)
+            }
             for _, color in ipairs(colors) do
                 TweenService:Create(Title, tweenInfo, {TextColor3 = color}):Play()
                 task.wait(1)
@@ -126,7 +125,7 @@ local function GetPing()
     return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() or 150
 end
 
--- Tìm mục tiêu gần tâm màn hình
+-- Tìm mục tiêu gần nhất hoặc đang nhìn
 local function FindTarget()
     local closestPlayer = nil
     local closestScore = math.huge
@@ -142,7 +141,7 @@ local function FindTarget()
                 local worldDistance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")) and 
                     (targetPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude or math.huge
 
-                -- Ưu tiên cực mạnh mục tiêu gần tâm
+                -- Ưu tiên mục tiêu gần tâm màn hình trong FOV
                 local score = screenDistance * 0.8 + worldDistance * 0.2
                 if onScreen and screenDistance < FOVRadius and score < closestScore then
                     closestScore = score
@@ -154,7 +153,7 @@ local function FindTarget()
     return closestPlayer
 end
 
--- Theo dõi hồi sinh
+-- Theo dõi hồi sinh của mục tiêu
 local function MonitorPlayerRespawn(player)
     if not player then return end
     player.CharacterAdded:Connect(function(newCharacter)
@@ -168,16 +167,10 @@ local function MonitorPlayerRespawn(player)
     end)
 end
 
--- Nội suy camera siêu nhanh
-local function SmoothCamera(currentCFrame, targetPos)
-    local targetCFrame = CFrame.new(currentCFrame.Position, targetPos)
-    return currentCFrame:Lerp(targetCFrame, Smoothness)
-end
-
 -- Xử lý CamLock
 RunService.RenderStepped:Connect(function(deltaTime)
     if CamLockEnabled and LocalPlayer.Character then
-        -- Tìm mục tiêu mới nếu cần
+        -- Nếu không có mục tiêu hoặc mục tiêu không hợp lệ, tìm mục tiêu mới
         if not LockedPlayer or not LockedPlayer.Character or not LockedPlayer.Character:FindFirstChild("Humanoid") or LockedPlayer.Character.Humanoid.Health <= 0 then
             if LockedPlayer then
                 MonitorPlayerRespawn(LockedPlayer)
@@ -189,26 +182,28 @@ RunService.RenderStepped:Connect(function(deltaTime)
             end
         end
 
-        -- Khóa vào mục tiêu
+        -- Khóa vào mục tiêu nếu hợp lệ
         if LockedPlayer and LockedPlayer.Character and (LockedPlayer.Character:FindFirstChild(TargetPartName) or LockedPlayer.Character:FindFirstChild("HumanoidRootPart")) then
             local targetPart = LockedPlayer.Character:FindFirstChild(TargetPartName) or LockedPlayer.Character.HumanoidRootPart
             local targetPos = targetPart.Position
-            local ping = GetPing() / 1000
+            local ping = GetPing() / 1000 -- Chuyển đổi ping sang giây
 
-            -- Dự đoán vị trí cải tiến
+            -- Dự đoán vị trí dựa trên lịch sử vị trí
             if LastTargetPosition then
                 local velocity = (targetPart.Position - LastTargetPosition) / deltaTime
                 targetPos = targetPos + velocity * ping * PredictionFactor
             end
             LastTargetPosition = targetPart.Position
 
-            -- Aim tức thời với Smoothness thấp
-            Camera.CFrame = SmoothCamera(Camera.CFrame, targetPos)
+            -- Khóa camera tức thời
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
 
-            -- Highlight
-            CreateHighlight(targetPart.Parent)
+            -- Thêm highlight cho mục tiêu
+            if not targetPart.Parent:FindFirstChild("Highlight") then
+                CreateHighlight(targetPart.Parent)
+            end
         else
-            -- Xóa highlight cho nhân vật khác
+            -- Xóa highlight cho các nhân vật khác
             for _, player in pairs(Players:GetPlayers()) do
                 if player ~= LockedPlayer and player.Character and player.Character:FindFirstChild("Highlight") then
                     player.Character.Highlight:Destroy()
@@ -216,7 +211,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
             end
         end
     else
-        -- Xóa highlight khi tắt
+        -- Xóa highlight khi tắt CamLock
         for _, player in pairs(Players:GetPlayers()) do
             if player.Character and player.Character:FindFirstChild("Highlight") then
                 player.Character.Highlight:Destroy()
