@@ -14,7 +14,7 @@ local Gui = nil
 local LastTargetPosition = nil
 local PredictionFactor = 0.35 -- Hệ số dự đoán mạnh hơn
 local TargetPartName = "Head" -- Khóa vào đầu
-local FOVRadius = 200 -- Giới hạn FOV để dính mục tiêu gần tâm
+local FOVRadius = 150 -- Giới hạn FOV để dính mục tiêu gần tâm
 
 -- Tạo Highlight cho mục tiêu
 local function CreateHighlight(character)
@@ -304,6 +304,6 @@ CreateGUI()
 -- Thông báo khởi động
 StarterGui:SetCore("SendNotification", {
     Title = "DNK CamLock",
-    Text = "CamLock Loaded! Press 'E' or use GUI to toggle.",
+    Text = "script lock by dnk .",
     Duration = 5
 })
