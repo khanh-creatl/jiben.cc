@@ -1,9 +1,8 @@
 -- DNK-Style Cam Lock for Mobile (Da Hood/Hood Z) - 2025
--- Features: GUI toggle ON/OFF, red text loading, blur effect, mobile-friendly
--- Toggle: Tap button in GUI or press virtual key (check executor)
+-- Features: GUI with black ON/OFF button, red "DNK" loading text, blur effect, invisible FOV
+-- Toggle: Tap ON/OFF button to lock head (aim by holding phone)
 
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
@@ -12,19 +11,19 @@ local Mouse = LocalPlayer:GetMouse() -- Virtual mouse for mobile
 
 local CamLockEnabled = false
 local Target = nil
-local FOVRadius = 100 -- Nhỏ hơn cho mobile
-local Prediction = 0.14 -- Giảm lag trên mobile
+local FOVRadius = 100 -- Bán kính lock, tối ưu mobile
+local Prediction = 0.14 -- Giảm lag
 
--- GUI Lib (Rayfield, tương thích mobile)
+-- GUI Lib (Rayfield, mobile-friendly)
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
-    Name = "DNK Cam Lock Mobile",
+    Name = "DNK Cam Lock",
     LoadingTitle = "DNK Loader",
     LoadingSubtitle = "by DNK",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "DNKHubMobile",
-        FileName = "dahood_mobile"
+        FileName = "dahood_lock"
     },
     KeySystem = false
 })
@@ -32,7 +31,7 @@ local Window = Rayfield:CreateWindow({
 -- Loading Effect: Mờ màn hình + text đỏ "DNK" 1s
 local ScreenGui = Instance.new("ScreenGui")
 local Blur = Instance.new("BlurEffect")
-Blur.Size = 20 -- Nhẹ hơn cho mobile
+Blur.Size = 20
 Blur.Parent = game.Lighting
 local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(1, 0, 1, 0)
@@ -40,7 +39,7 @@ Frame.BackgroundColor3 = Color3.new(0, 0, 0)
 Frame.BackgroundTransparency = 0.6
 Frame.Parent = ScreenGui
 local TextLabel = Instance.new("TextLabel")
-TextLabel.Size = UDim2.new(0, 150, 0, 50) -- Nhỏ hơn cho mobile
+TextLabel.Size = UDim2.new(0, 150, 0, 50)
 TextLabel.Position = UDim2.new(0.5, -75, 0.5, -25)
 TextLabel.BackgroundTransparency = 1
 TextLabel.Text = "DNK"
@@ -58,16 +57,7 @@ Frame:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Quad", 0.5, true, function()
     print("Loading done! Script by DNK") -- TB console
 end)
 
--- FOV Circle (visualize, nhẹ cho mobile)
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = false
-FOVCircle.Radius = FOVRadius
-FOVCircle.Color = Color3.new(1, 0, 0)
-FOVCircle.Thickness = 1 -- Mỏng hơn
-FOVCircle.Filled = false
-FOVCircle.Transparency = 0.7
-
--- Tìm target gần nhất
+-- Tìm target gần nhất trong FOV (tàng hình)
 local function GetClosestPlayer()
     local Closest, Shortest = nil, FOVRadius
     for _, Player in pairs(Players:GetPlayers()) do
@@ -89,7 +79,7 @@ local function LockCamera()
         local Head = Target.Character.Head
         local Predicted = Head.Position + (Head.AssemblyLinearVelocity * Prediction)
         local Direction = (Predicted - Camera.CFrame.Position).Unit
-        Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, Camera.CFrame.Position + Direction), 0.3) -- Mượt hơn
+        Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, Camera.CFrame.Position + Direction), 0.3)
     end
 end
 
@@ -101,7 +91,6 @@ MainTab:CreateToggle({
     Flag = "CamLockEnabled",
     Callback = function(Value)
         CamLockEnabled = Value
-        FOVCircle.Visible = Value
         if Value then
             print("DNK Cam Lock: ON")
         else
@@ -111,22 +100,8 @@ MainTab:CreateToggle({
     end
 })
 
--- FOV Slider
-MainTab:CreateSlider({
-    Name = "FOV Radius",
-    Range = {50, 200},
-    Increment = 10,
-    CurrentValue = 100,
-    Flag = "FOVRadius",
-    Callback = function(Value)
-        FOVRadius = Value
-    end
-})
-
 -- Main loop
 RunService.Heartbeat:Connect(function()
-    FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
-    FOVCircle.Radius = FOVRadius
     if CamLockEnabled then
         Target = GetClosestPlayer()
         if Target then LockCamera() end
@@ -136,4 +111,4 @@ end)
 -- Cleanup
 Players.PlayerRemoving:Connect(function(P) if P == Target then Target = nil end end)
 
-print("DNK Mobile Cam Lock Loaded! Tap button to toggle.")
+print("DNK Cam Lock Loaded! Tap ON button to lock head.")
