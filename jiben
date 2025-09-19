@@ -12,9 +12,10 @@ local CamLockEnabled = false
 local LockedPlayer = nil
 local Gui = nil
 local LastTargetPosition = nil
-local PredictionFactor = 0.35 -- Hệ số dự đoán mạnh hơn
+local PredictionFactor = 0.35 -- Dự đoán mạnh
 local TargetPartName = "Head" -- Khóa vào đầu
-local FOVRadius = 200 -- Giới hạn FOV để dính mục tiêu gần tâm
+local FOVRadius = 200 -- Phạm vi POV (dựa trên vùng khoanh vàng)
+local StealthMode = false -- Chế độ POV tàng hình
 
 -- Tạo GUI
 local function CreateGUI()
@@ -23,8 +24,8 @@ local function CreateGUI()
     ScreenGui.Name = "DNKCamLock"
 
     local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(0, 150, 0, 100)
-    Frame.Position = UDim2.new(0.5, -75, 0.5, -50)
+    Frame.Size = UDim2.new(0, 150, 0, 150)
+    Frame.Position = UDim2.new(0.5, -75, 0.5, -75)
     Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     Frame.BackgroundTransparency = 0.5
     Frame.Parent = ScreenGui
@@ -43,13 +44,23 @@ local function CreateGUI()
 
     local ToggleButton = Instance.new("TextButton")
     ToggleButton.Size = UDim2.new(0.8, 0, 0, 40)
-    ToggleButton.Position = UDim2.new(0.1, 0, 0.5, 0)
+    ToggleButton.Position = UDim2.new(0.1, 0, 0.3, 0)
     ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     ToggleButton.Text = "OFF"
     ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
     ToggleButton.TextScaled = true
     ToggleButton.Font = Enum.Font.SourceSans
     ToggleButton.Parent = Frame
+
+    local StealthButton = Instance.new("TextButton")
+    StealthButton.Size = UDim2.new(0.8, 0, 0, 40)
+    StealthButton.Position = UDim2.new(0.1, 0, 0.5, 0)
+    StealthButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    StealthButton.Text = "Stealth OFF"
+    StealthButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+    StealthButton.TextScaled = true
+    StealthButton.Font = Enum.Font.SourceSans
+    StealthButton.Parent = Frame
 
     -- Hiệu ứng đổi màu cho tiêu đề
     local function ChangeTitleColor()
@@ -69,7 +80,7 @@ local function CreateGUI()
     end
     task.spawn(ChangeTitleColor)
 
-    -- Xử lý nút bật/tắt
+    -- Xử lý nút bật/tắt CamLock
     ToggleButton.MouseButton1Click:Connect(function()
         CamLockEnabled = not CamLockEnabled
         ToggleButton.Text = CamLockEnabled and "ON" or "OFF"
@@ -84,20 +95,16 @@ local function CreateGUI()
         end
     end)
 
-    -- Phím tắt bật/tắt (phím E)
-    UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-        if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.E then
-            CamLockEnabled = not CamLockEnabled
-            ToggleButton.Text = CamLockEnabled and "ON" or "OFF"
-            ToggleButton.TextColor3 = CamLockEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-            if not CamLockEnabled then
-                LockedPlayer = nil
-                for _, player in pairs(Players:GetPlayers()) do
-                    if player.Character and player.Character:FindFirstChild("Highlight") then
-                        player.Character.Highlight:Destroy()
-                    end
-                end
-            end
+    -- Xử lý nút Stealth Mode
+    StealthButton.MouseButton1Click:Connect(function()
+        StealthMode = not StealthMode
+        StealthButton.Text = StealthMode and "Stealth ON" or "Stealth OFF"
+        StealthButton.TextColor3 = StealthMode and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        if StealthMode then
+            -- Ẩn camera ngoài POV (tạm thời làm mờ hoặc giới hạn tầm nhìn)
+            Camera.FieldOfView = 20 -- Thu hẹp FOV để mô phỏng tàng hình
+        else
+            Camera.FieldOfView = 70 -- Khôi phục FOV mặc định
         end
     end)
 
@@ -125,7 +132,7 @@ local function GetPing()
     return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() or 150
 end
 
--- Tìm mục tiêu gần nhất hoặc đang nhìn
+-- Tìm mục tiêu trong POV
 local function FindTarget()
     local closestPlayer = nil
     local closestScore = math.huge
@@ -141,7 +148,7 @@ local function FindTarget()
                 local worldDistance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")) and 
                     (targetPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude or math.huge
 
-                -- Ưu tiên mục tiêu gần tâm màn hình trong FOV
+                -- Chỉ chọn mục tiêu trong POV và gần tâm
                 local score = screenDistance * 0.8 + worldDistance * 0.2
                 if onScreen and screenDistance < FOVRadius and score < closestScore then
                     closestScore = score
@@ -153,7 +160,7 @@ local function FindTarget()
     return closestPlayer
 end
 
--- Theo dõi hồi sinh của mục tiêu
+-- Theo dõi hồi sinh
 local function MonitorPlayerRespawn(player)
     if not player then return end
     player.CharacterAdded:Connect(function(newCharacter)
@@ -170,7 +177,12 @@ end
 -- Xử lý CamLock
 RunService.RenderStepped:Connect(function(deltaTime)
     if CamLockEnabled and LocalPlayer.Character then
-        -- Nếu không có mục tiêu hoặc mục tiêu không hợp lệ, tìm mục tiêu mới
+        -- Kích hoạt Stealth Mode khi lock
+        if StealthMode and CamLockEnabled then
+            Camera.FieldOfView = 20 -- Giữ FOV hẹp trong POV
+        end
+
+        -- Tìm mục tiêu mới nếu cần
         if not LockedPlayer or not LockedPlayer.Character or not LockedPlayer.Character:FindFirstChild("Humanoid") or LockedPlayer.Character.Humanoid.Health <= 0 then
             if LockedPlayer then
                 MonitorPlayerRespawn(LockedPlayer)
@@ -182,13 +194,13 @@ RunService.RenderStepped:Connect(function(deltaTime)
             end
         end
 
-        -- Khóa vào mục tiêu nếu hợp lệ
+        -- Khóa vào mục tiêu trong POV
         if LockedPlayer and LockedPlayer.Character and (LockedPlayer.Character:FindFirstChild(TargetPartName) or LockedPlayer.Character:FindFirstChild("HumanoidRootPart")) then
             local targetPart = LockedPlayer.Character:FindFirstChild(TargetPartName) or LockedPlayer.Character.HumanoidRootPart
             local targetPos = targetPart.Position
-            local ping = GetPing() / 1000 -- Chuyển đổi ping sang giây
+            local ping = GetPing() / 1000
 
-            -- Dự đoán vị trí dựa trên lịch sử vị trí
+            -- Dự đoán vị trí
             if LastTargetPosition then
                 local velocity = (targetPart.Position - LastTargetPosition) / deltaTime
                 targetPos = targetPos + velocity * ping * PredictionFactor
@@ -198,7 +210,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
             -- Khóa camera tức thời
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
 
-            -- Thêm highlight cho mục tiêu
+            -- Thêm highlight
             if not targetPart.Parent:FindFirstChild("Highlight") then
                 CreateHighlight(targetPart.Parent)
             end
@@ -211,7 +223,10 @@ RunService.RenderStepped:Connect(function(deltaTime)
             end
         end
     else
-        -- Xóa highlight khi tắt CamLock
+        -- Khôi phục FOV và xóa highlight khi tắt
+        if StealthMode then
+            Camera.FieldOfView = 70
+        end
         for _, player in pairs(Players:GetPlayers()) do
             if player.Character and player.Character:FindFirstChild("Highlight") then
                 player.Character.Highlight:Destroy()
@@ -226,6 +241,6 @@ CreateGUI()
 -- Thông báo khởi động
 StarterGui:SetCore("SendNotification", {
     Title = "DNK CamLock",
-    Text = "CamLock Loaded! Press 'E' or use GUI to toggle.",
+    Text = "CamLock Loaded! Press 'E' or use GUI to toggle. Use Stealth for POV mode.",
     Duration = 5
 })
